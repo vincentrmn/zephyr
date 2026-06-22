@@ -40,6 +40,7 @@ def test_narrative_payload_only_contains_provided_numbers() -> None:
     assert payload["verdict"] == res.verdict.value
     assert "roi" in payload and "thermique" in payload
     # Les chiffres correspondent au résultat (pas d'invention).
+    assert res.roi is not None and res.thermal is not None
     assert payload["roi"]["capex_vnc_eur"] == round(res.roi.capex_vnc_eur)
     assert payload["thermique"]["penalite_chauffage_eur_an"] == round(
         res.thermal.heating_penalty_eur_per_year

@@ -2731,6 +2731,7 @@ full = [
     { name = "anthropic" },
     { name = "ezdxf" },
     { name = "fastapi" },
+    { name = "matplotlib" },
     { name = "networkx" },
     { name = "pvlib" },
     { name = "shapely" },
@@ -2743,6 +2744,9 @@ llm = [
 ]
 report = [
     { name = "weasyprint" },
+]
+viz = [
+    { name = "matplotlib" },
 ]
 
 [package.dev-dependencies]
@@ -2757,6 +2761,7 @@ requires-dist = [
     { name = "anthropic", marker = "extra == 'llm'", specifier = ">=0.40" },
     { name = "ezdxf", marker = "extra == 'cao'", specifier = ">=1.1" },
     { name = "fastapi", marker = "extra == 'app'", specifier = ">=0.110" },
+    { name = "matplotlib", marker = "extra == 'viz'", specifier = ">=3.7" },
     { name = "networkx", marker = "extra == 'cao'", specifier = ">=3.2" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pandas", specifier = ">=2.1" },
@@ -2767,9 +2772,9 @@ requires-dist = [
     { name = "streamlit", marker = "extra == 'app'", specifier = ">=1.32" },
     { name = "uvicorn", marker = "extra == 'app'", specifier = ">=0.29" },
     { name = "weasyprint", marker = "extra == 'report'", specifier = ">=60" },
-    { name = "zephyr", extras = ["cao", "climate", "llm", "report", "app"], marker = "extra == 'full'" },
+    { name = "zephyr", extras = ["cao", "climate", "llm", "report", "viz", "app"], marker = "extra == 'full'" },
 ]
-provides-extras = ["cao", "climate", "llm", "report", "app", "full"]
+provides-extras = ["cao", "climate", "llm", "report", "viz", "app", "full"]
 
 [package.metadata.requires-dev]
 dev = [

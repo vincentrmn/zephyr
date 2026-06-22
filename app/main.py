@@ -32,6 +32,7 @@ from zephyr.schemas import (
     Verdict,
 )
 from zephyr.study import compute_study
+from zephyr.viz import render_plan_png
 
 _VERDICT_COLOR = {Verdict.GO: "🟢", Verdict.CONDITIONNEL: "🟠", Verdict.NO_GO: "🔴"}
 
@@ -160,6 +161,31 @@ def main() -> None:
     tc2.metric("Surchauffe", f"{result.thermal.overheating_hours:.0f} h/an")
     tc3.metric("Night-cooling", f"{result.thermal.night_cooling_benefit_kwh:,.0f} kWh/an")
 
+    if result.thermal.zones:
+        st.subheader("Détail thermique par pièce")
+        st.dataframe(
+            [
+                {
+                    "pièce": z.zone_id,
+                    "label": z.label,
+                    "m²": z.area_m2,
+                    "hiver moy °C": z.winter_mean_c,
+                    "hiver min °C": z.winter_min_c,
+                    "été moy °C": z.summer_mean_c,
+                    "été max °C": z.summer_max_c,
+                    "surchauffe h": round(z.overheating_hours),
+                    "CO₂ moy ppm": z.co2_mean_ppm,
+                    "CO₂ max ppm": z.co2_max_ppm,
+                    "h CO₂>1000": round(z.co2_hours_above_1000 or 0),
+                }
+                for z in result.thermal.zones
+            ]
+        )
+
+    if dxf_file is not None and any(r.polygon for r in building.rooms):
+        st.subheader("Plan reconstruit")
+        st.image(render_plan_png(building))
+
     st.subheader("Sensibilité (tornado)")
     st.bar_chart({e.parameter: e.swing for e in result.roi.sensitivity})
 
@@ -179,7 +205,7 @@ def main() -> None:
     with st.expander("Rapport HTML"):
         st.download_button(
             "Télécharger le rapport",
-            render_report_html(result),
+            render_report_html(result, building=building),
             file_name="prestude_vnc.html",
             mime="text/html",
         )

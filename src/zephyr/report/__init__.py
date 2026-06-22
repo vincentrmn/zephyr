@@ -42,9 +42,65 @@ def _kv_table(d: dict[str, str]) -> str:
     return f"<table>{rows}</table>"
 
 
-def render_report_html(result: StudyResult, *, title: str = "Pré-étude VNC — Zéphyr") -> str:
-    """Construit le rapport au format HTML (chaîne)."""
+def _zones_table(result: StudyResult) -> str:
+    """Tableau thermique par pièce : températures saisonnières + CO₂."""
+    if result.thermal is None or not result.thermal.zones:
+        return ""
+    head = (
+        "<tr><th>pièce</th><th>label</th><th>m²</th><th>hiver moy/min</th>"
+        "<th>été moy/max</th><th>surchauffe h</th><th>CO₂ moy/max ppm</th>"
+        "<th>h&gt;1000</th></tr>"
+    )
+    rows = []
+    for z in result.thermal.zones:
+        co2_h = z.co2_hours_above_1000 or 0.0
+        rows.append(
+            "<tr>"
+            f"<td>{html.escape(z.zone_id)}</td>"
+            f"<td>{html.escape(z.label or '')}</td>"
+            f"<td>{z.area_m2 or 0:.0f}</td>"
+            f"<td>{z.winter_mean_c}/{z.winter_min_c}</td>"
+            f"<td>{z.summer_mean_c}/{z.summer_max_c}</td>"
+            f"<td>{z.overheating_hours:.0f}</td>"
+            f"<td>{z.co2_mean_ppm}/{z.co2_max_ppm}</td>"
+            f"<td>{co2_h:.0f}</td>"
+            "</tr>"
+        )
+    return (
+        "<h3>Détail par pièce (températures opératives, CO₂)</h3>"
+        "<table class='zones'>" + head + "".join(rows) + "</table>"
+        "<p style='font-size:.85rem;color:#777'>Hiver = DJF (chauffage actif), été = JJA "
+        "(free-running + night-cooling). CO₂ = modèle d'équilibre (occupation × débit).</p>"
+    )
+
+
+def render_report_html(
+    result: StudyResult,
+    *,
+    building: object | None = None,
+    title: str = "Pré-étude VNC — Zéphyr",
+) -> str:
+    """Construit le rapport au format HTML (chaîne).
+
+    Si ``building`` (un `Building`) est fourni et que matplotlib est disponible,
+    le plan reconstruit est embarqué.
+    """
     label, color = _VERDICT_LABEL[result.verdict]
+
+    plan_html = ""
+    if building is not None:
+        try:
+            from zephyr.viz import render_plan_data_uri
+
+            uri = render_plan_data_uri(building)  # type: ignore[arg-type]
+            plan_html = (
+                "<h2>Géométrie reconstruite</h2>"
+                f"<img src='{uri}' alt='plan' style='max-width:100%;border:1px solid #eee'>"
+                "<p style='font-size:.85rem;color:#777'>Orientations/ouvrants estimés — "
+                "à valider par l'ingénieur (§2.8).</p>"
+            )
+        except Exception:  # pragma: no cover - matplotlib absent
+            plan_html = ""
 
     thermal_html = "<p><em>Non calculé.</em></p>"
     if result.thermal is not None:
@@ -53,10 +109,10 @@ def render_report_html(result: StudyResult, *, title: str = "Pré-étude VNC —
             {
                 "Pénalité de chauffage VNC": f"{t.heating_penalty_kwh_per_year:.0f} kWh/an "
                 f"(≈ {t.heating_penalty_eur_per_year:.0f} €/an)",
-                "Heures de surchauffe": f"{t.overheating_hours:.0f} h/an",
+                "Heures de surchauffe (pire pièce)": f"{t.overheating_hours:.0f} h/an",
                 "Bénéfice night-cooling": f"{t.night_cooling_benefit_kwh:.0f} kWh/an",
             }
-        )
+        ) + _zones_table(result)
 
     roi_html = "<p><em>Non calculé.</em></p>"
     if result.roi is not None:
@@ -105,6 +161,7 @@ def render_report_html(result: StudyResult, *, title: str = "Pré-étude VNC —
 <p class="verdict">VERDICT&nbsp;: {label}</p>
 <p class="disclaimer">⚠️ {html.escape(_DISCLAIMER)}</p>
 {narrative}
+{plan_html}
 <h2>Faisabilité</h2>
 <h3>Disqualifiants</h3><ul>{_li(result.disqualifiers)}</ul>
 <h3>Conditions</h3><ul>{_li(result.conditions)}</ul>
@@ -115,13 +172,15 @@ def render_report_html(result: StudyResult, *, title: str = "Pré-étude VNC —
 </body></html>"""
 
 
-def render_report(result: StudyResult, output_path: str | Path) -> Path:
+def render_report(
+    result: StudyResult, output_path: str | Path, *, building: object | None = None
+) -> Path:
     """Génère le rapport. Écrit du HTML ; tente un PDF si WeasyPrint est dispo.
 
     Renvoie le chemin réellement écrit (``.pdf`` si possible, sinon ``.html``).
     """
     output_path = Path(output_path)
-    html_text = render_report_html(result)
+    html_text = render_report_html(result, building=building)
 
     if output_path.suffix.lower() == ".pdf":
         try:

@@ -85,6 +85,10 @@ class R5C1Params:
     core_coupling_w_m2k: float = 6.0
     core_capacity_kj_m2k: float = 120.0
     core_ground_coupling_w_m2k: float = 0.5
+    # CO₂ (modèle d'équilibre par pièce : occupation × génération / débit d'air).
+    occupancy_per_m2: float = 0.03  # personnes/m² en pointe (~logement)
+    co2_gen_per_person_m3h: float = 0.018  # génération CO₂ d'une personne (m³/h)
+    co2_outdoor_ppm: float = 420.0
     extra: dict[str, float] = field(default_factory=dict)
 
 
@@ -276,6 +280,55 @@ def _gains_series_w_m2(params: R5C1Params, n_hours: int) -> list[float]:
         prof = weekday if (i // 24) % 7 < 5 else weekend
         out[i] = prof[i % 24]
     return out
+
+
+def _season_of_hour(i: int) -> str:
+    """Saison d'une heure de l'année : 'hiver' (DJF), 'ete' (JJA), sinon 'mi-saison'."""
+    month = min(12, 1 + (i // 24) * 12 // 365)  # mois approché 1..12
+    if month in (12, 1, 2):
+        return "hiver"
+    if month in (6, 7, 8):
+        return "ete"
+    return "mi-saison"
+
+
+def _occupancy_fraction(params: R5C1Params, n_hours: int) -> list[float]:
+    """Fraction d'occupation horaire (0..1), déduite du profil d'apports (proxy)."""
+    if params.gains_profile_24h_w_m2 is None:
+        return [1.0] * n_hours
+    gains = _gains_series_w_m2(params, n_hours)
+    peak = max(gains) or 1.0
+    return [g / peak for g in gains]
+
+
+def _zone_co2_stats(
+    area_m2: float,
+    h_ve_series: list[float],
+    h_inf: float,
+    occ_fraction: list[float],
+    params: R5C1Params,
+) -> tuple[float, float, float]:
+    """CO₂ par pièce (équilibre horaire) → (moyenne occupée, max, heures > 1000 ppm).
+
+    C(t) = C_ext + 1e6 · G(t) / Q(t), avec G = personnes × génération, Q = débit
+    d'air frais (ventilation + infiltration). Modèle d'équilibre, niveau pré-étude.
+    """
+    peak_persons = params.occupancy_per_m2 * area_m2
+    gen = params.co2_gen_per_person_m3h
+    samples: list[float] = []
+    occupied: list[float] = []
+    hours_above = 0.0
+    for i in range(len(h_ve_series)):
+        q_m3h = (h_ve_series[i] + h_inf) / RHO_C_AIR  # débit d'air frais (m³/h)
+        persons = peak_persons * occ_fraction[i]
+        co2 = params.co2_outdoor_ppm + 1e6 * (persons * gen) / max(q_m3h, 1e-3)
+        samples.append(co2)
+        if persons > 0.05 * peak_persons:  # heures réellement occupées
+            occupied.append(co2)
+        if co2 > 1000.0:
+            hours_above += 1.0
+    mean_occ = sum(occupied) / len(occupied) if occupied else params.co2_outdoor_ppm
+    return mean_occ, max(samples), hours_above
 
 
 def _h_ve_constant(z: _ZoneModel, ach: float) -> float:
@@ -485,8 +538,13 @@ def simulate_5r1c(
     _, heat_vnc = run([[h_inf[j] + h_hyg[j]] * n for j in range(nz)], setpoint)
     _, heat_vmc = run([[h_inf[j] + h_hyg[j] * (1.0 - eff)] * n for j in range(nz)], setpoint)
 
-    # Surchauffe : free-running VNC avec night-cooling.
-    air_free, _ = run([_night_cooling_series(z, climate, params) for z in zone_models], None)
+    # Run OPÉRATIONNEL (chauffage actif + night-cooling) : la température réelle
+    # vue par chaque pièce sur l'année → saisons, surchauffe, base CO₂.
+    night_series = [_night_cooling_series(z, climate, params) for z in zone_models]
+    air_op, _ = run(night_series, params.heating_setpoint_c)
+
+    seasons = [_season_of_hour(i) for i in range(n)]
+    occ_fraction = _occupancy_fraction(params, n)
 
     penalty_kwh = 0.0
     overheating_max = 0.0
@@ -494,13 +552,20 @@ def simulate_5r1c(
     night_benefit_kwh = 0.0
     zones: list[ZoneResult] = []
     for j, room in enumerate(building.rooms):
-        series = air_free[j]
+        series = air_op[j]
         zone_penalty = max(heat_vnc[j] - heat_vmc[j], 0.0)
         penalty_kwh += zone_penalty
         oh = sum(1.0 for t in series if t > params.comfort_temp_c)
         dh = sum(max(t - params.comfort_temp_c, 0.0) for t in series)
         overheating_max = max(overheating_max, oh)
         dh_max = max(dh_max, dh)
+
+        winter = [series[i] for i in range(n) if seasons[i] == "hiver"]
+        summer = [series[i] for i in range(n) if seasons[i] == "ete"]
+        co2_mean, co2_max, co2_h1000 = _zone_co2_stats(
+            room.area_m2, night_series[j], h_inf[j], occ_fraction, params
+        )
+
         boost = _h_ve_constant(zone_models[j], params.night_cooling_ach) - h_hyg[j]
         for i in range(n):
             hour = i % 24
@@ -508,12 +573,22 @@ def simulate_5r1c(
                 dt = series[i] - climate.dry_bulb_c[i]
                 if dt > 0:
                     night_benefit_kwh += boost * dt / 1000.0
+
         zones.append(
             ZoneResult(
                 zone_id=room.id,
-                top_min_c=min(series),
-                top_max_c=max(series),
+                label=room.label.value,
+                area_m2=round(room.area_m2, 1),
+                top_min_c=round(min(series), 1),
+                top_max_c=round(max(series), 1),
+                winter_mean_c=round(sum(winter) / len(winter), 1) if winter else None,
+                winter_min_c=round(min(winter), 1) if winter else None,
+                summer_mean_c=round(sum(summer) / len(summer), 1) if summer else None,
+                summer_max_c=round(max(summer), 1) if summer else None,
                 overheating_hours=oh,
+                co2_mean_ppm=round(co2_mean),
+                co2_max_ppm=round(co2_max),
+                co2_hours_above_1000=co2_h1000,
                 heating_vnc_kwh=heat_vnc[j],
                 heating_penalty_kwh=zone_penalty,
             )

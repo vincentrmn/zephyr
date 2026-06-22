@@ -32,6 +32,9 @@ llm = [
 report = [
     "weasyprint>=60",
 ]
+viz = [
+    "matplotlib>=3.7",
+]
 app = [
     "fastapi>=0.110",
     "streamlit>=1.32",
@@ -39,7 +42,7 @@ app = [
 ]
 # Méta-extra : tout le runtime « v1 interne ».
 full = [
-    "zephyr[cao,climate,llm,report,app]",
+    "zephyr[cao,climate,llm,report,viz,app]",
 ]
 
 [dependency-groups]

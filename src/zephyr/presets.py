@@ -124,6 +124,7 @@ def office_thermal_params(**overrides: object) -> R5C1Params:
         "comfort_temp_c": 26.0,
         "hygienic_ach": 1.0,  # besoin d'air plus élevé quand occupé
         "night_cooling_ach": 5.0,  # sur-ventilation nocturne (free-cooling)
+        "occupancy_per_m2": 0.10,  # densité bureau (~1 pers / 10 m²)
     }
     base.update(overrides)
     return R5C1Params(**base)  # type: ignore[arg-type]

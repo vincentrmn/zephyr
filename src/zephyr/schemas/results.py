@@ -34,14 +34,23 @@ class Range(BaseModel):
 class ZoneResult(BaseModel):
     """Résultat thermique d'une zone (pièce) en modèle multi-zone.
 
-    ``top_min_c`` / ``top_max_c`` sont les extrêmes de température opérative en
-    free-float (bâtiment à vide) — la grandeur comparée aux STD IDA ICE.
+    ``top_min_c`` / ``top_max_c`` sont les extrêmes de température opérative
+    (annuels). Les champs saisonniers et CO₂ détaillent le confort par pièce.
     """
 
     zone_id: str
+    label: str | None = None
+    area_m2: float | None = None
     top_min_c: float
     top_max_c: float
+    winter_mean_c: float | None = None
+    winter_min_c: float | None = None
+    summer_mean_c: float | None = None
+    summer_max_c: float | None = None
     overheating_hours: float = 0.0
+    co2_mean_ppm: float | None = None
+    co2_max_ppm: float | None = None
+    co2_hours_above_1000: float | None = None
     heating_vnc_kwh: float | None = None
     heating_penalty_kwh: float | None = None
 
