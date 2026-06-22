@@ -13,9 +13,12 @@ une étude opposable. Toute sortie expose ses hypothèses et son incertitude.
 
 ## 📖 Contexte de référence
 
-**Lire [`CLAUDE.md`](./CLAUDE.md)** : mission, décisions d'architecture (non
-négociables), glossaire métier, stack, spec ROI/thermique, roadmap et
-garde-fous. C'est le document maître du projet.
+- **[`docs/COMMENT_CA_MARCHE.md`](./docs/COMMENT_CA_MARCHE.md)** — explications
+  **claires** (niveau ingénieur généraliste) : quel modèle, STD vs régression,
+  fiabilité, paramètres, bureaux. À lire pour présenter/faire tester l'outil.
+- **[`CLAUDE.md`](./CLAUDE.md)** — document maître : mission, décisions
+  d'architecture (non négociables), glossaire, stack, spec ROI/thermique,
+  roadmap, garde-fous.
 
 ## Architecture (pipeline)
 
