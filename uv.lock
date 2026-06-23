@@ -2716,6 +2716,7 @@ dependencies = [
 [package.optional-dependencies]
 app = [
     { name = "fastapi" },
+    { name = "python-multipart" },
     { name = "streamlit" },
     { name = "uvicorn" },
 ]
@@ -2734,6 +2735,7 @@ full = [
     { name = "matplotlib" },
     { name = "networkx" },
     { name = "pvlib" },
+    { name = "python-multipart" },
     { name = "shapely" },
     { name = "streamlit" },
     { name = "uvicorn" },
@@ -2751,6 +2753,7 @@ viz = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "httpx" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "ruff" },
@@ -2767,6 +2770,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.1" },
     { name = "pvlib", marker = "extra == 'climate'", specifier = ">=0.10" },
     { name = "pydantic", specifier = ">=2.6" },
+    { name = "python-multipart", marker = "extra == 'app'", specifier = ">=0.0.9" },
     { name = "salib", specifier = ">=1.5" },
     { name = "shapely", marker = "extra == 'cao'", specifier = ">=2.0" },
     { name = "streamlit", marker = "extra == 'app'", specifier = ">=1.32" },
@@ -2778,6 +2782,7 @@ provides-extras = ["cao", "climate", "llm", "report", "viz", "app", "full"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "httpx", specifier = ">=0.27" },
     { name = "mypy", specifier = ">=1.9" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "ruff", specifier = ">=0.4" },

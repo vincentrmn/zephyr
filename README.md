@@ -3,10 +3,15 @@
 > Moteur de **pré-étude de faisabilité** pour l'intégration de la **VNC**
 > (Ventilation Naturelle Contrôlée) dans les bâtiments.
 
-À partir de plans (DXF), de quelques paramètres et du type de projet, Zéphyr
-produit en quelques minutes : un **verdict de faisabilité** (go / no-go /
-conditionnel), un **ROI chiffré** (VNC vs VMC double-flux) avec fourchettes, et
-un **rapport exportable**.
+À partir de plans (DXF) et du CPE, Zéphyr produit en quelques minutes : un
+**score d'aptitude VNC** (déterministe, 4 critères pondérés) avec des
+**recommandations** d'amélioration, et un **bilan financier** chiffré (VNC vs VMC
+double-flux) avec fourchettes et sensibilité.
+
+> **Décision produit** : la VNC est éligible sur ~95 % des bâtiments. On ne
+> simule donc pas la thermique (ni 5R1C, ni EnergyPlus) — on **note l'aptitude**.
+> Le seul terme thermique est le **surcoût de chauffage** VNC vs VMC, calculé en
+> **degrés-jours** (déterministe). Full déterministe, pas de STD.
 
 ⚠️ Outil interne de **pré-qualification / aide à la décision**. Ce n'est **pas**
 une étude opposable. Toute sortie expose ses hypothèses et son incertitude.
@@ -20,46 +25,54 @@ une étude opposable. Toute sortie expose ses hypothèses et son incertitude.
   d'architecture (non négociables), glossaire, stack, spec ROI/thermique,
   roadmap, garde-fous.
 
-## Architecture (pipeline)
+## Architecture (pipeline déterministe)
 
-`ingestion` (DXF) → `geometry` (topologie → `Building`) → `thermal` (5R1C) &
-`ventilation` (tirage+vent) → `rules` (faisabilité) & `roi` (économie) →
-`report`. Le `llm` est un service transverse (labelling + narratif), pas une
-étape du pipeline.
+`ingestion` (DXF) → `geometry` (topologie → `Building`) → `rules` (**score
+d'aptitude**) & `thermal` (**pénalité chauffage degrés-jours**) → `roi`
+(économie) → `web` / `report`. Le `llm` est un service transverse (narratif),
+pas une étape du pipeline.
 
-## État (pipeline complet bout-en-bout)
+## État
 
 | Module | État |
 |---|---|
-| `schemas` | ✅ contrat pydantic v2 (Building, StudyInput, résultats, ZoneResult, SiteContext) |
-| `roi` | ✅ TCO/VAN paramétrique + pénalité **calculée** + tornado |
-| `climate` | ✅ EPW réel (TMYx Findel) validé + degrés-heures + solaire |
-| `thermal` | ✅ 5R1C **multi-zone** (sol + cœur structurel) — free-float **validé STD** ; pénalité directionnelle |
-| `ventilation` | ✅ débits naturels (tirage + vent) + vérifs hygiénique/free-cooling |
-| `rules` | ✅ verdict go/no-go/conditionnel + disqualifiants §4 |
-| `study` | ✅ pipeline `compute_study` → `StudyResult` complet |
-| `ingestion` / `geometry` | ✅ DXF → pièces (surfaces, labels, orientations estimées, ouvrants) — à valider humainement |
+| `schemas` | ✅ contrat pydantic v2 (Building, VNCScore, HeatingPenalty, ROIResult…) |
+| `rules` | ✅ **moteur de score** pondéré + recommandations (ventilation, vitrage, inertie, isolation) |
+| `thermal` | ✅ **pénalité de chauffage en degrés-jours** (déterministe, sans STD) |
+| `roi` | ✅ TCO/VAN paramétrique + pénalité branchée + tornado |
+| `climate` | ✅ EPW réel (TMYx Findel) + degrés-jours/heures + solaire |
+| `ingestion` / `geometry` | ✅ DXF → pièces (surfaces, labels, orientations, ouvrants) — validées humainement |
+| `web` | ✅ plateforme FastAPI : landing → config → **validation géométrie** → résultats |
 | `report` | ✅ rapport HTML (PDF optionnel WeasyPrint) |
-| `presets` | ✅ profils logement / **bureau** |
-| `llm` | 🚧 narratif (Phase 4 — à venir) |
-
-Presets bureau + logement (`zephyr.presets`). Pénalité de chauffage **calculée**
-mais encore *directionnelle* (calage fin en attente d'un besoin de chauffage STD).
+| `study` | ✅ pipeline `compute_study` → `StudyResult` |
+| `llm` | ✅ narratif Opus (optionnel) |
 
 ## Démarrage
 
 ```bash
 # Cœur (schemas + roi + thermal), suffisant pour les tests :
 uv sync
-
-# Runtime complet (CAO, climat, LLM, rapport, UI) :
-uv sync --extra full
-
-# Tests
 uv run pytest
 
-# UI interne (démo ROI) — nécessite l'extra app
-uv run --extra app streamlit run app/main.py
+# Runtime complet (CAO, climat, rapport, UI) :
+uv sync --extra full
+```
+
+### 🚀 Lancer la plateforme web
+
+```bash
+./scripts/run_web.sh                 # → http://127.0.0.1:8000
+# ou : uv run --extra full uvicorn app.web:app --reload
+```
+
+Ouvrez `http://127.0.0.1:8000`, cliquez **Lancer une étude**, et déposez le plan
+d'exemple **[`examples/plan_exemple.dxf`](./examples/plan_exemple.dxf)** (6 pièces,
+120 m²) — ou laissez vide pour une saisie paramétrique. Le DXF passe par l'étape
+de **validation de la géométrie** avant le calcul.
+
+```bash
+# Régénérer le DXF d'exemple :
+uv run --extra cao python scripts/make_sample_dxf.py
 ```
 
 ## Garde-fous (rappel — cf. CLAUDE.md §11)
