@@ -107,6 +107,7 @@ def test_tracing_editor_has_zoom_pan() -> None:
     assert "onWheel" in h and "zoomAt" in h  # molette = zoom
     assert "pointerdown" in h and "pointermove" in h  # glisser = pan
     assert "touch-action:none" in h  # pas de scroll page au glisser tactile
+    assert 'id="t-mark"' in h and "markF()" in h  # taille réglable des repères
 
 
 def test_tracing_editor_can_draw_windows() -> None:

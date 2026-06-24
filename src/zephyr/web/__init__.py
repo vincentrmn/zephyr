@@ -615,6 +615,8 @@ var sel=-1, mode='idle', draft=[], calib=[], winDrag=null;
 var view={x:0, y:0, w:T.w, h:T.h};
 function applyView(){ svg().setAttribute('viewBox', view.x+' '+view.y+' '+view.w+' '+view.h); }
 function px(m){ return m/mpp; }  // mètres → px-image : tailles physiques, lisibles au zoom
+function markF(){ var e=document.getElementById('t-mark'); return e?(parseFloat(e.value)||1):1; }
+function mk(m){ return px(m*markF()); }  // repères de tracé (ronds/pointillés), taille réglable
 function el(t,a){var e=document.createElementNS(SVGNS,t);for(var k in a)e.setAttribute(k,a[k]);return e;}
 function toM(x,y){return [x*mpp,(H-y)*mpp];}
 function toPx(mx,my){return [mx/mpp, H-my/mpp];}
@@ -658,13 +660,13 @@ function render(){
   });
   if(winDrag){
     s.appendChild(el('line',{x1:winDrag.a[0],y1:winDrag.a[1],x2:winDrag.b[0],y2:winDrag.b[1],
-      stroke:'#1a73e8','stroke-width':px(0.2),'stroke-dasharray':px(0.4)+' '+px(0.25),'stroke-linecap':'round'}));
+      stroke:'#1a73e8','stroke-width':mk(0.2),'stroke-dasharray':mk(0.4)+' '+mk(0.25),'stroke-linecap':'round'}));
   }
   if(draft.length){
-    s.appendChild(el('polyline',{points:draft.map(function(p){return p[0]+','+p[1];}).join(' '), fill:'none', stroke:'#e8590c','stroke-width':px(0.14),'stroke-dasharray':px(0.5)+' '+px(0.3)}));
-    draft.forEach(function(p){s.appendChild(el('circle',{cx:p[0],cy:p[1],r:px(0.22),fill:'#e8590c'}));});
+    s.appendChild(el('polyline',{points:draft.map(function(p){return p[0]+','+p[1];}).join(' '), fill:'none', stroke:'#e8590c','stroke-width':mk(0.14),'stroke-dasharray':mk(0.5)+' '+mk(0.3)}));
+    draft.forEach(function(p){s.appendChild(el('circle',{cx:p[0],cy:p[1],r:mk(0.22),fill:'#e8590c'}));});
   }
-  if(calib.length===1){ s.appendChild(el('circle',{cx:calib[0][0],cy:calib[0][1],r:px(0.25),fill:'#c0392b'})); }
+  if(calib.length===1){ s.appendChild(el('circle',{cx:calib[0][0],cy:calib[0][1],r:mk(0.25),fill:'#c0392b'})); }
   document.getElementById('scaleinfo').textContent='Échelle ≈ '+(mpp*1000).toFixed(1)+' mm/px';
   roomlist(); syncHidden();
 }
@@ -773,6 +775,7 @@ document.addEventListener('DOMContentLoaded',function(){
   document.getElementById('t-zin').onclick=function(){ zoomAt([view.x+view.w/2, view.y+view.h/2], 0.8); };
   document.getElementById('t-zout').onclick=function(){ zoomAt([view.x+view.w/2, view.y+view.h/2], 1.25); };
   document.getElementById('t-zreset').onclick=function(){ view={x:0,y:0,w:T.w,h:T.h}; render(); };
+  document.getElementById('t-mark').oninput=function(){ render(); };
   render();
 });
 """
@@ -808,6 +811,9 @@ avant de tracer ; chaque pièce garde le sien.</p>
     <button type="button" class="btn ghost" id="t-zin" title="Zoomer">+</button>
     <button type="button" class="btn ghost" id="t-zreset" title="Vue entière">⤢</button>
   </span>
+  <label style="display:inline-flex;align-items:center;gap:.3rem;font-size:.85rem;color:var(--muted);margin:0"
+    title="Grosseur des ronds et pointillés de tracé">Repères
+    <input type="range" id="t-mark" min="0.5" max="4" step="0.5" value="1" style="width:90px"></label>
   <span id="scaleinfo" style="color:var(--muted);font-size:.85rem"></span>
   <span id="hint" style="color:#e8590c;font-weight:600"></span>
 </div>
