@@ -611,6 +611,10 @@ var ORDIR={N:[0,1],NE:[0.7,0.7],E:[1,0],SE:[0.7,-0.7],S:[0,-1],SW:[-0.7,-0.7],W:
 var LABELS=["sejour","chambre","cuisine","sdb","wc","circulation","bureau","technique","autre"];
 var COLORS={sejour:"#cfe8cf",chambre:"#cfe0f5",cuisine:"#f5e6cf",sdb:"#cfeef0",wc:"#e6cff5",circulation:"#eeeeee",bureau:"#f5cfd6",technique:"#dddddd",autre:"#f0f0f0"};
 var sel=-1, mode='idle', draft=[], calib=[];
+// Vue (viewBox) pour zoom/pan ; coordonnées en px-image (T.w × T.h).
+var view={x:0, y:0, w:T.w, h:T.h};
+function applyView(){ svg().setAttribute('viewBox', view.x+' '+view.y+' '+view.w+' '+view.h); }
+function zf(v){ return v*view.w/T.w; }  // taille constante à l'écran malgré le zoom
 function el(t,a){var e=document.createElementNS(SVGNS,t);for(var k in a)e.setAttribute(k,a[k]);return e;}
 function toM(x,y){return [x*mpp,(H-y)*mpp];}
 function toPx(mx,my){return [mx/mpp, H-my/mpp];}
@@ -621,29 +625,30 @@ function svg(){return document.getElementById('plan');}
 function setMode(m){mode=m;draft=[];calib=[];document.getElementById('hint').textContent=(m==='draw'?'Cliquez les coins de la pièce, puis « Terminer ».':m==='calibrate'?'Cliquez deux points d\\'une cote connue.':'');render();}
 function render(){
   var s=svg();
+  applyView();
   while(s.lastChild && s.lastChild.tagName!=='image'){ s.removeChild(s.lastChild); }
   B.rooms.forEach(function(r,i){
     var xs=[],ys=[];
     var pts=r.polygon.map(function(m){var p=toPx(m[0],m[1]);xs.push(p[0]);ys.push(p[1]);return p[0]+','+p[1];}).join(' ');
     var pg=el('polygon',{points:pts, fill:(COLORS[r.label]||'#eee'), 'fill-opacity':0.45,
-      stroke:(i===sel?'#08313a':(through(r)?'#0e9aa7':'#555')), 'stroke-width':(i===sel?3:(through(r)?2.4:1.4))});
+      stroke:(i===sel?'#08313a':(through(r)?'#0e9aa7':'#555')), 'stroke-width':zf(i===sel?3:(through(r)?2.4:1.4))});
     pg.style.cursor='pointer';
     pg.addEventListener('click',(function(idx){return function(){ if(mode==='idle'){ sel=idx; render(); } };})(i));
     s.appendChild(pg);
     var cx=xs.reduce(function(a,b){return a+b;},0)/xs.length, cy=ys.reduce(function(a,b){return a+b;},0)/ys.length;
-    var t1=el('text',{x:cx,y:cy,'text-anchor':'middle','font-size':14,fill:'#111','font-weight':'600'});t1.textContent=r.label;s.appendChild(t1);
-    var t2=el('text',{x:cx,y:cy+15,'text-anchor':'middle','font-size':11,fill:'#333'});t2.textContent=fmt(r.area_m2)+' m\\u00b2';s.appendChild(t2);
+    var t1=el('text',{x:cx,y:cy,'text-anchor':'middle','font-size':zf(14),fill:'#111','font-weight':'600'});t1.textContent=r.label;s.appendChild(t1);
+    var t2=el('text',{x:cx,y:cy+zf(15),'text-anchor':'middle','font-size':zf(11),fill:'#333'});t2.textContent=fmt(r.area_m2)+' m\\u00b2';s.appendChild(t2);
     var minx=Math.min.apply(null,xs),maxx=Math.max.apply(null,xs),miny=Math.min.apply(null,ys),maxy=Math.max.apply(null,ys);
     var dcx=(minx+maxx)/2,dcy=(miny+maxy)/2,rw=maxx-minx,rh=maxy-miny;
     (r.exterior_wall_orientations||[]).forEach(function(o){var d=ORDIR[o];if(!d)return;
       var mx=dcx+d[0]*0.4*rw, my=dcy-d[1]*0.4*rh;
-      var tm=el('text',{x:mx,y:my,'text-anchor':'middle','font-size':13,fill:'#0e9aa7','font-weight':'700'});tm.textContent=o;s.appendChild(tm);});
+      var tm=el('text',{x:mx,y:my,'text-anchor':'middle','font-size':zf(13),fill:'#0e9aa7','font-weight':'700'});tm.textContent=o;s.appendChild(tm);});
   });
   if(draft.length){
-    s.appendChild(el('polyline',{points:draft.map(function(p){return p[0]+','+p[1];}).join(' '), fill:'none', stroke:'#e8590c','stroke-width':2,'stroke-dasharray':'6 4'}));
-    draft.forEach(function(p){s.appendChild(el('circle',{cx:p[0],cy:p[1],r:3.5,fill:'#e8590c'}));});
+    s.appendChild(el('polyline',{points:draft.map(function(p){return p[0]+','+p[1];}).join(' '), fill:'none', stroke:'#e8590c','stroke-width':zf(2),'stroke-dasharray':zf(6)+' '+zf(4)}));
+    draft.forEach(function(p){s.appendChild(el('circle',{cx:p[0],cy:p[1],r:zf(3.5),fill:'#e8590c'}));});
   }
-  if(calib.length===1){ s.appendChild(el('circle',{cx:calib[0][0],cy:calib[0][1],r:4,fill:'#c0392b'})); }
+  if(calib.length===1){ s.appendChild(el('circle',{cx:calib[0][0],cy:calib[0][1],r:zf(4),fill:'#c0392b'})); }
   document.getElementById('scaleinfo').textContent='Échelle ≈ '+(mpp*1000).toFixed(1)+' mm/px';
   roomlist(); syncHidden();
 }
@@ -685,11 +690,38 @@ function roomlist(){
   Array.prototype.forEach.call(d.querySelectorAll('[data-or]'),function(c){c.onchange=function(){var r=B.rooms[parseInt(c.dataset.i)],o=c.dataset.or,st=new Set(r.exterior_wall_orientations);if(c.checked){st.add(o);}else{st.delete(o);}r.exterior_wall_orientations=Array.from(st);render();};});
 }
 function syncHidden(){ document.getElementById('building_json').value=JSON.stringify(B); }
+// --- Zoom / pan (§10.1) : molette = zoom centré curseur, glisser = pan. ---
+function zoomAt(p, f){
+  var nw=Math.max(T.w*0.05, Math.min(T.w*5, view.w*f)), k=nw/view.w;
+  view.x=p[0]-(p[0]-view.x)*k; view.y=p[1]-(p[1]-view.y)*k;
+  view.w=nw; view.h*=k; render();
+}
+function onWheel(ev){ ev.preventDefault(); zoomAt(evtPoint(ev), ev.deltaY<0?0.85:1.18); }
+var pan=null, panned=false;
+function onDown(ev){ pan={cx:ev.clientX, cy:ev.clientY, vx:view.x, vy:view.y}; panned=false; }
+function onMove(ev){
+  if(!pan) return;
+  var dx=ev.clientX-pan.cx, dy=ev.clientY-pan.cy;
+  if(!panned && Math.abs(dx)+Math.abs(dy)<5) return;
+  panned=true;
+  var rect=svg().getBoundingClientRect();
+  view.x=pan.vx - dx*view.w/rect.width; view.y=pan.vy - dy*view.h/rect.height;
+  applyView();
+}
+function onUp(ev){ if(pan && !panned){ onClick(ev); } pan=null; }
 document.addEventListener('DOMContentLoaded',function(){
-  svg().addEventListener('click',onClick);
+  var s=svg();
+  s.addEventListener('pointerdown',onDown);
+  s.addEventListener('pointermove',onMove);
+  s.addEventListener('pointerup',onUp);
+  s.addEventListener('pointerleave',function(){ pan=null; });
+  s.addEventListener('wheel',onWheel,{passive:false});
   document.getElementById('t-draw').onclick=function(){ setMode(mode==='draw'?'idle':'draw'); };
   document.getElementById('t-finish').onclick=finishRoom;
   document.getElementById('t-cal').onclick=function(){ setMode('calibrate'); };
+  document.getElementById('t-zin').onclick=function(){ zoomAt([view.x+view.w/2, view.y+view.h/2], 0.8); };
+  document.getElementById('t-zout').onclick=function(){ zoomAt([view.x+view.w/2, view.y+view.h/2], 1.25); };
+  document.getElementById('t-zreset').onclick=function(){ view={x:0,y:0,w:T.w,h:T.h}; render(); };
   render();
 });
 """
@@ -709,16 +741,21 @@ def render_tracing(
 <p class="lead" style="color:var(--muted)">Ton plan est en fond. <b>Trace chaque
 pièce</b> (clique ses coins, puis « Terminer »), nomme-la et coche ses façades —
 la <b>surface réelle</b> est calculée via l'échelle. Calibre en cliquant une cote
-connue si besoin.</p>
+connue si besoin. <b>Molette</b> = zoom, <b>glisser</b> = déplacer le plan.</p>
 <div class="tracebar">
   <button type="button" class="btn ghost" id="t-draw">✏️ Tracer une pièce</button>
   <button type="button" class="btn ghost" id="t-finish">✓ Terminer la pièce</button>
   <button type="button" class="btn ghost" id="t-cal">📏 Calibrer l'échelle</button>
+  <span style="display:inline-flex;gap:.3rem">
+    <button type="button" class="btn ghost" id="t-zout" title="Dézoomer">−</button>
+    <button type="button" class="btn ghost" id="t-zin" title="Zoomer">+</button>
+    <button type="button" class="btn ghost" id="t-zreset" title="Vue entière">⤢</button>
+  </span>
   <span id="scaleinfo" style="color:var(--muted);font-size:.85rem"></span>
   <span id="hint" style="color:#e8590c;font-weight:600"></span>
 </div>
 <svg id="plan" viewBox="0 0 {w_px} {h_px}"
-  style="width:100%;height:72vh;border:1px solid var(--line);border-radius:.6rem;background:#fff">
+  style="width:100%;height:72vh;border:1px solid var(--line);border-radius:.6rem;background:#fff;touch-action:none;cursor:grab">
   <image href="{image_uri}" x="0" y="0" width="{w_px}" height="{h_px}"/>
 </svg>
 <div id="roomlist" style="margin-top:1rem"></div>

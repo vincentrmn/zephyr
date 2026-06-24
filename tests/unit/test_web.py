@@ -99,6 +99,16 @@ def test_tracing_editor_renders() -> None:
     assert 'action="/etude/resultat"' in h and 'name="building_json"' in h
 
 
+def test_tracing_editor_has_zoom_pan() -> None:
+    """§10.1 — zoom/pan : boutons + handlers molette/glisser dans le JS."""
+    h = render_tracing("data:image/png;base64,ABC", 800, 600, 0.0353, "")
+    for ctrl in ('id="t-zin"', 'id="t-zout"', 'id="t-zreset"'):
+        assert ctrl in h
+    assert "onWheel" in h and "zoomAt" in h  # molette = zoom
+    assert "pointerdown" in h and "pointermove" in h  # glisser = pan
+    assert "touch-action:none" in h  # pas de scroll page au glisser tactile
+
+
 def test_building_from_form_roundtrip() -> None:
     form = {
         "n_rooms": "1",
