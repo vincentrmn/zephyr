@@ -36,6 +36,15 @@ def test_study_form_has_inputs() -> None:
     assert 'action="/etude/cpe"' in h and 'name="cpe"' in h  # import CPE
 
 
+def test_study_form_blocks_and_new_fields() -> None:
+    """Page config friendly : blocs en cartes + champs projet (chauffage/ECS/châssis)."""
+    h = render_study_form()
+    assert 'id="mainform"' in h  # formulaire unique, champs rattachés via form=
+    for field in ("chauffage", "ecs", "chassis_material"):
+        assert f'name="{field}"' in h
+    assert "Plan &amp; tracé" in h and "🏗️ Projet" in h  # blocs en cartes
+
+
 def test_study_form_prefills_envelope() -> None:
     h = render_study_form({"u_wall": "0.18", "n50": "0.6", "inertia": "lourde", "area": "739.3"})
     assert 'name="u_wall" value="0.18"' in h

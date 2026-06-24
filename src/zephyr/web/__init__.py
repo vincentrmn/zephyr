@@ -304,89 +304,123 @@ def render_study_form(
     def v(key: str, default: str) -> str:
         return html.escape(str(p.get(key, default)))
 
-    def opt(key: str, val: str, default: str, lbl: str) -> str:
-        sel = " selected" if str(p.get(key, default)) == val else ""
-        return f'<option value="{val}"{sel}>{lbl}</option>'
+    def select(name: str, options: list[tuple[str, str]], default: str) -> str:
+        cur = str(p.get(name, default))
+        opts = "".join(
+            f'<option value="{val}"{" selected" if val == cur else ""}>{lbl}</option>'
+            for val, lbl in options
+        )
+        return f'<select name="{name}" form="mainform">{opts}</select>'
 
-    inertia_opts = (
-        opt("inertia", "lourde", "lourde", "Lourde (béton / maçonnerie)")
-        + opt("inertia", "moyenne", "lourde", "Moyenne")
-        + opt("inertia", "legere", "lourde", "Légère (ossature)")
+    inertia_sel = select(
+        "inertia",
+        [("lourde", "Lourde (béton / maçonnerie)"), ("moyenne", "Moyenne"),
+         ("legere", "Légère (ossature)")],
+        "lourde",
+    )
+    nature_sel = select(
+        "nature", [("neuf", "Construction neuve"), ("renovation", "Rénovation")], "neuf"
+    )
+    ptype_sel = select(
+        "project_type",
+        [("logement", "Logement"), ("bureau", "Bureau"), ("mixte", "Mixte"),
+         ("scolaire", "Scolaire")],
+        "mixte",
+    )
+    chauffage_sel = select(
+        "chauffage",
+        [("pac", "Pompe à chaleur"), ("gaz", "Gaz"), ("electrique", "Électrique"),
+         ("reseau", "Réseau de chaleur"), ("fioul", "Fioul"), ("bois", "Bois / pellets")],
+        "pac",
+    )
+    ecs_sel = select(
+        "ecs",
+        [("thermodynamique", "Ballon thermodynamique"), ("ballon_elec", "Ballon électrique"),
+         ("gaz", "Gaz"), ("solaire", "Solaire thermique"), ("chauffage", "Couplé au chauffage")],
+        "thermodynamique",
+    )
+    chassis_sel = select(
+        "chassis_material",
+        [("pvc", "PVC"), ("alu", "Aluminium"), ("bois", "Bois"), ("mixte", "Bois/alu")],
+        "pvc",
     )
     body = f"""
-<h1>Nouvelle étude — configuration</h1>
-<p class="lead" style="color:var(--muted)">Déposez les plans (DXF) et renseignez ce
-qu'un plan ne porte pas : nature du projet, matériaux/CPE, contexte. On lit la
-géométrie du DXF ; vous la validez à l'étape suivante.</p>
+<h1>Nouvelle étude</h1>
+<p class="lead" style="color:var(--muted)">Importez un plan à tracer et un CPE
+(optionnels), validez l'enveloppe, renseignez le projet. On calcule ensuite le
+score d'aptitude VNC et le bilan financier.</p>
 
-<h2 class="sec">Importer un CPE (optionnel)</h2>
-<p style="color:var(--muted);font-size:.9rem">Pré-remplit l'enveloppe depuis un
-passeport énergétique <b>PDF vectoriel</b> (U, n50, inertie, surface). Les valeurs
-extraites sont <b>vérifiées dans le texte source</b> puis posées dans le formulaire :
-vous les validez ci-dessous.</p>
-<form method="post" action="/etude/cpe" enctype="multipart/form-data">
-  <input type="file" name="cpe" accept=".pdf">
-  <button class="btn ghost" type="submit">Extraire le CPE →</button>
-</form>
-{cpe_banner}
+<!-- Formulaire principal (vide) : les champs des cartes lui sont rattachés via form="mainform". -->
+<form id="mainform" method="post" action="/etude" enctype="multipart/form-data"></form>
 
-<form method="post" action="/etude" enctype="multipart/form-data">
-  <h2 class="sec">Plans</h2>
-  <label>Plan vectoriel DXF ou PDF (optionnel — sinon saisie paramétrique)</label>
-  <input type="file" name="dxf" accept=".dxf,.pdf">
-  <p style="color:var(--muted);font-size:.85rem;margin:.3rem 0">PDF <b>vectoriel</b>
-  uniquement (export archi/CAO) — un PDF scanné (image) n'est pas lu (ce serait
-  de la vision).</p>
+<div class="card" style="margin:1rem 0">
+  <h2 style="margin-top:0">📐 Plan &amp; tracé</h2>
+  <p style="color:var(--muted);font-size:.9rem;margin:.2rem 0 .6rem">Déposez un
+  <b>DXF</b> ou un <b>PDF vectoriel</b> : il servira de fond pour tracer les pièces
+  et les châssis à l'étape suivante. Un PDF <b>scanné</b> (image) n'est pas lu.
+  Sans plan : saisie paramétrique (surface ci-dessous).</p>
+  <input type="file" name="dxf" accept=".dxf,.pdf" form="mainform">
+</div>
 
-  <h2 class="sec">Projet (non lisible des plans)</h2>
-  <div class="form-grid">
-    <div><label>Nature</label>
-      <select name="nature">
-        <option value="neuf" selected>Construction neuve</option>
-        <option value="renovation">Rénovation</option>
-      </select></div>
-    <div><label>Type de projet</label>
-      <select name="project_type">
-        <option value="logement">Logement</option>
-        <option value="bureau">Bureau</option>
-        <option value="mixte" selected>Mixte</option>
-        <option value="scolaire">Scolaire</option>
-      </select></div>
-    <div><label>Localisation (climat)</label>
-      <input type="text" name="location" value="Luxembourg" placeholder="ville, pays"></div>
-    <div><label>Angle du Nord (° ; 0 = +y du plan)</label>
-      <input type="number" name="north" value="0" step="5"></div>
-    <div><label>Inertie (composition des parois — CPE)</label>
-      <select name="inertia">{inertia_opts}</select></div>
-    <div><label>Surface ventilée (m²) — si pas de DXF</label>
-      <input type="number" name="area" value="{v("area", "1200")}" step="10"></div>
-    <div><label>Niveaux — si pas de DXF</label>
-      <input type="number" name="levels" value="2" min="1"></div>
-  </div>
+<div class="card" style="margin:1rem 0">
+  <h2 style="margin-top:0">📄 CPE — passeport énergétique</h2>
+  <p style="color:var(--muted);font-size:.9rem;margin:.2rem 0 .6rem">Pré-remplit
+  l'enveloppe (U, n50, inertie, surface). Valeurs <b>vérifiées dans le texte source</b>
+  puis posées ci-dessous — vous validez/corrigez chaque champ. Sans CPE (ou CPE
+  scanné) : saisie à la main.</p>
+  <form method="post" action="/etude/cpe" enctype="multipart/form-data">
+    <input type="file" name="cpe" accept=".pdf">
+    <button class="btn ghost" type="submit">Extraire le CPE →</button>
+  </form>
+  {cpe_banner}
+</div>
 
-  <h2 class="sec">Enveloppe (CPE)</h2>
+<div class="card" style="margin:1rem 0">
+  <h2 style="margin-top:0">🏢 Enveloppe (issue du CPE — à valider)</h2>
   <div class="form-grid">
     <div><label>U murs (W/m²K)</label>
-      <input type="number" name="u_wall" value="{v("u_wall", "0.20")}" step="0.01"></div>
+      <input type="number" name="u_wall" value="{v("u_wall", "0.20")}" step="0.01" form="mainform"></div>
     <div><label>Uw vitrage (W/m²K)</label>
-      <input type="number" name="u_window" value="{v("u_window", "0.9")}" step="0.1"></div>
+      <input type="number" name="u_window" value="{v("u_window", "0.9")}" step="0.1" form="mainform"></div>
     <div><label>Ratio vitrage / surface au sol</label>
-      <input type="number" name="glazing" value="{v("glazing", "0.18")}" step="0.01"></div>
-    <div><label>Hauteur des châssis (m)</label>
-      <input type="number" name="sash" value="{v("sash", "1.6")}" step="0.1"></div>
+      <input type="number" name="glazing" value="{v("glazing", "0.18")}" step="0.01" form="mainform"></div>
+    <div><label>Hauteur des châssis par défaut (m)</label>
+      <input type="number" name="sash" value="{v("sash", "1.5")}" step="0.1" form="mainform"></div>
     <div><label>Perméabilité à l'air n50 (vol/h)</label>
-      <input type="number" name="n50" value="{v("n50", "1.5")}" step="0.1"></div>
+      <input type="number" name="n50" value="{v("n50", "1.5")}" step="0.1" form="mainform"></div>
+    <div><label>Inertie (composition des parois)</label>{inertia_sel}</div>
   </div>
+</div>
 
-  <h2 class="sec">Contexte du site</h2>
-  <label class="check"><input type="checkbox" name="noise"> Bruit extérieur excessif</label>
-  <label class="check"><input type="checkbox" name="pollution"> Pollution / pollen élevés</label>
-  <label class="check"><input type="checkbox" name="security"> Risque de sécurité au RdC</label>
-  <label class="check"><input type="checkbox" name="occ_incompatible">
+<div class="card" style="margin:1rem 0">
+  <h2 style="margin-top:0">🏗️ Projet</h2>
+  <div class="form-grid">
+    <div><label>Nature</label>{nature_sel}</div>
+    <div><label>Type de projet</label>{ptype_sel}</div>
+    <div><label>Type de chauffage</label>{chauffage_sel}</div>
+    <div><label>Eau chaude sanitaire (ECS)</label>{ecs_sel}</div>
+    <div><label>Matériau des châssis</label>{chassis_sel}</div>
+    <div><label>Localisation (climat)</label>
+      <input type="text" name="location" value="{v("location", "Luxembourg")}" form="mainform"></div>
+    <div><label>Angle du Nord (° ; 0 = +y du plan)</label>
+      <input type="number" name="north" value="{v("north", "0")}" step="5" form="mainform"></div>
+    <div><label>Surface (m²) — facultatif, recoupée au tracé/DXF</label>
+      <input type="number" name="area" value="{v("area", "1200")}" step="10" form="mainform"></div>
+    <div><label>Niveaux — si pas de plan</label>
+      <input type="number" name="levels" value="{v("levels", "2")}" min="1" form="mainform"></div>
+  </div>
+</div>
+
+<div class="card" style="margin:1rem 0">
+  <h2 style="margin-top:0">📍 Contexte du site</h2>
+  <label class="check"><input type="checkbox" name="noise" form="mainform"> Bruit extérieur excessif</label>
+  <label class="check"><input type="checkbox" name="pollution" form="mainform"> Pollution / pollen élevés</label>
+  <label class="check"><input type="checkbox" name="security" form="mainform"> Risque de sécurité au RdC</label>
+  <label class="check"><input type="checkbox" name="occ_incompatible" form="mainform">
     Occupation incompatible (hôpital, process…)</label>
+</div>
 
-  <p style="margin-top:1.4rem"><button class="btn" type="submit">Continuer →</button></p>
-</form>
+<p style="margin:1.4rem 0"><button class="btn" type="submit" form="mainform">Continuer →</button></p>
 """
     return _layout("Zéphyr — nouvelle étude", body, cta=False)
 

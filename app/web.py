@@ -238,6 +238,9 @@ async def submit_config(
     glazing: float = Form(0.18),
     sash: float = Form(1.6),
     n50: float = Form(1.5),
+    chauffage: str = Form("pac"),
+    ecs: str = Form("thermodynamique"),
+    chassis_material: str = Form("pvc"),
     noise: str | None = Form(None),
     pollution: str | None = Form(None),
     security: str | None = Form(None),
@@ -248,6 +251,8 @@ async def submit_config(
         "north": str(north), "inertia": inertia, "area": str(area), "levels": str(levels),
         "u_wall": str(u_wall), "u_window": str(u_window), "glazing": str(glazing),
         "sash": str(sash), "n50": str(n50),
+        # Captés (pas encore câblés au calcul) — transmis pour le futur/report.
+        "chauffage": chauffage, "ecs": ecs, "chassis_material": chassis_material,
     }
     flags = {
         "noise": bool(noise), "pollution": bool(pollution),
@@ -298,6 +303,7 @@ async def submit_geometry(request: Request) -> str:
             "inertia": "lourde", "area": "1200", "levels": "2",
             "u_wall": "0.20", "u_window": "0.9", "glazing": "0.18",
             "sash": "1.6", "n50": "1.5",
+            "chauffage": "pac", "ecs": "thermodynamique", "chassis_material": "pvc",
         }.items()
     }
     flags = {k: bool(d.get(k)) for k in ("noise", "pollution", "security", "occ_incompatible")}
