@@ -144,6 +144,19 @@ def test_tracing_editor_can_draw_windows() -> None:
     assert "'window'" in h  # mode de tracé de châssis
 
 
+def test_tracing_editor_window_height_and_table() -> None:
+    """Châssis : popup hauteur au relâcher + largeur/hauteur éditables dans le tableau."""
+    h = render_tracing("data:image/png;base64,ABC", 800, 600, 0.0353, "")
+    assert "showHeightPopup" in h  # bulle pour saisir la hauteur
+    assert 'data-wf="w"' in h and 'data-wf="h"' in h  # largeur/hauteur éditables
+    assert "setWinWidth" in h and "winRecalc" in h
+
+
+def test_tracing_editor_has_compass() -> None:
+    h = render_tracing("data:image/png;base64,ABC", 800, 600, 0.0353, "")
+    assert "rose des vents" in h  # rose des vents dans le cadre
+
+
 def test_tracing_editor_has_levels() -> None:
     """§10.5 — multi-niveaux : niveau courant + niveau par pièce (plans/planche)."""
     h = render_tracing("data:image/png;base64,ABC", 800, 600, 0.0353, "")

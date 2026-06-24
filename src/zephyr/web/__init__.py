@@ -769,11 +769,38 @@ function addWindow(a,b){
   var ma=toM(a[0],a[1]), mb=toM(b[0],b[1]);
   var lenM=Math.hypot(ma[0]-mb[0],ma[1]-mb[1]);
   var c=centroidM(r), o=nearestOri((ma[0]+mb[0])/2-c[0],(ma[1]+mb[1])/2-c[1]);
-  var sashEl=document.querySelector('input[name=sash]'), sash=sashEl?(parseFloat(sashEl.value)||1.6):1.6;
-  r.openings.push({id:r.id+'_w'+r.openings.length, kind:'window', orientation:o,
-    area_m2:Math.max(lenM*sash,0.1), sill_height_m:0.9, head_height_m:0.9+sash,
-    openable:true, free_area_ratio:0.5, _seg:[a,b]});
+  var sashEl=document.querySelector('input[name=sash]'), h=sashEl?(parseFloat(sashEl.value)||1.5):1.5;
+  var w=Math.max(lenM,0.1);
+  var op={id:r.id+'_w'+r.openings.length, kind:'window', orientation:o,
+    area_m2:Math.max(w*h,0.1), sill_height_m:0.9, head_height_m:0.9+h,
+    openable:true, free_area_ratio:0.5, _w:w, _h:h, _seg:[a,b]};
+  r.openings.push(op);
   if(r.exterior_wall_orientations.indexOf(o)<0){ r.exterior_wall_orientations.push(o); }
+  return {ri:sel, oi:r.openings.length-1};
+}
+// Recalcule surface/linteau depuis largeur (_w) × hauteur (_h).
+function winRecalc(op){ op.area_m2=Math.max((op._w||0.1)*(op._h||1.5),0.1); op.sill_height_m=0.9; op.head_height_m=0.9+(op._h||1.5); }
+// Met la largeur à jour et redimensionne le repère tracé autour de son milieu.
+function setWinWidth(op,w){
+  w=Math.max(w,0.05); var old=op._w||w; op._w=w; winRecalc(op);
+  if(op._seg && old>0){ var a=op._seg[0],b=op._seg[1],mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2,k=w/old;
+    op._seg=[[mx+(a[0]-mx)*k,my+(a[1]-my)*k],[mx+(b[0]-mx)*k,my+(b[1]-my)*k]]; }
+}
+// Bulle pop-up pour saisir la hauteur du châssis juste après l'avoir tracé.
+function showHeightPopup(ref, x, y){
+  var r=B.rooms[ref.ri], op=r&&r.openings[ref.oi]; if(!op) return;
+  var pop=document.createElement('div');
+  pop.style.cssText='position:fixed;z-index:50;background:#fff;border:1px solid #0e9aa7;border-radius:.5rem;padding:.5rem .6rem;box-shadow:0 4px 16px rgba(0,0,0,.18);font:inherit';
+  pop.style.left=Math.min(x,window.innerWidth-180)+'px'; pop.style.top=(y+8)+'px';
+  pop.innerHTML='<div style="font-size:.8rem;font-weight:600;margin-bottom:.2rem">Hauteur du châssis (m)</div>'+
+    '<input type="number" step="0.1" value="'+fmt(op._h)+'" style="width:90px;padding:.3rem"> '+
+    '<button type="button" class="btn" style="padding:.3rem .6rem">OK</button>';
+  document.body.appendChild(pop);
+  var inp=pop.querySelector('input'), ok=pop.querySelector('button');
+  function commit(){ var v=parseFloat(inp.value); if(v>0){ op._h=v; winRecalc(op); } if(pop.parentNode){ pop.parentNode.removeChild(pop); } render(); }
+  ok.onclick=commit;
+  inp.onkeydown=function(e){ if(e.key==='Enter'){ commit(); } else if(e.key==='Escape'){ if(pop.parentNode){pop.parentNode.removeChild(pop);} } };
+  inp.focus(); inp.select();
 }
 function roomlist(){
   var d=document.getElementById('roomlist');
@@ -781,15 +808,24 @@ function roomlist(){
   d.innerHTML='<h3>Pièces tracées ('+B.rooms.length+')</h3>'+B.rooms.map(function(r,i){
     var lab=LABELS.map(function(l){return '<option value="'+l+'"'+(l===r.label?' selected':'')+'>'+l+'</option>';}).join('');
     var chips=ORS.map(function(o){return '<label class="chip"><input type="checkbox" data-i="'+i+'" data-or="'+o+'"'+(r.exterior_wall_orientations.indexOf(o)>=0?' checked':'')+'>'+o+'</label>';}).join('');
+    var wins=(r.openings||[]).map(function(op,j){
+      return '<div class="winrow" style="gap:.3rem">'+
+        '<span style="font-size:.8rem;color:#0e9aa7;font-weight:700;width:1.8rem">'+(op.orientation||'?')+'</span>'+
+        '<label style="font-size:.78rem;color:#555;margin:0">l<input data-wi="'+i+'" data-wj="'+j+'" data-wf="w" type="number" step="0.1" value="'+fmt(op._w!=null?op._w:0)+'" style="width:62px;padding:.2rem;margin-left:.15rem"></label>'+
+        '<label style="font-size:.78rem;color:#555;margin:0">h<input data-wi="'+i+'" data-wj="'+j+'" data-wf="h" type="number" step="0.1" value="'+fmt(op._h!=null?op._h:0)+'" style="width:62px;padding:.2rem;margin-left:.15rem"></label>'+
+        '<span style="font-size:.78rem;color:#888">'+fmt(op.area_m2)+' m\\u00b2</span>'+
+        '<button type="button" data-wdel="'+i+'_'+j+'" class="btn ghost" style="padding:.1rem .45rem">\\u2715</button></div>';
+    }).join('') || '<span style="font-size:.8rem;color:#aaa">aucun</span>';
     return '<div class="card" data-sel="'+i+'" style="cursor:pointer;margin:.4rem 0;'+(i===sel?'outline:2px solid #0e9aa7':'')+'"><div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">'+
       '<select data-lab="'+i+'">'+lab+'</select><b>'+fmt(r.area_m2)+' m\\u00b2</b>'+
       '<label style="font-size:.8rem;color:#555">niv.<input data-lvl="'+i+'" type="number" value="'+r.level+'" style="width:50px;padding:.2rem;margin-left:.2rem"></label>'+
       (through(r)?'<span class="badge-ok">traversant</span>':'')+
-      '<span style="color:#888;font-size:.8rem">'+(r.openings||[]).length+' châssis</span>'+
       '<button type="button" data-pick="'+i+'" class="btn ghost">🪟 + châssis</button>'+
       '<button type="button" data-del="'+i+'" class="btn ghost">supprimer</button></div>'+
       '<div style="font-size:.8rem;color:#888;margin:.3rem 0 .1rem">Façades extérieures :</div>'+
-      '<div class="chips">'+chips+'</div></div>';
+      '<div class="chips">'+chips+'</div>'+
+      '<div style="font-size:.8rem;color:#888;margin:.4rem 0 .1rem">Châssis ('+(r.openings||[]).length+') — largeur l × hauteur h (m) :</div>'+
+      wins+'</div>';
   }).join('');
   Array.prototype.forEach.call(d.querySelectorAll('[data-sel]'),function(c){c.onclick=function(e){ if(e.target.closest('select,input,button,label')){ return; } sel=parseInt(c.dataset.sel); render(); };});
   Array.prototype.forEach.call(d.querySelectorAll('[data-pick]'),function(b){b.onclick=function(){ sel=parseInt(b.dataset.pick); setMode('window'); };});
@@ -797,6 +833,8 @@ function roomlist(){
   Array.prototype.forEach.call(d.querySelectorAll('[data-lvl]'),function(n){n.onchange=function(){B.rooms[parseInt(n.dataset.lvl)].level=parseInt(n.value)||0;render();};});
   Array.prototype.forEach.call(d.querySelectorAll('[data-del]'),function(b){b.onclick=function(){B.rooms.splice(parseInt(b.dataset.del),1);sel=-1;render();};});
   Array.prototype.forEach.call(d.querySelectorAll('[data-or]'),function(c){c.onchange=function(){var r=B.rooms[parseInt(c.dataset.i)],o=c.dataset.or,st=new Set(r.exterior_wall_orientations);if(c.checked){st.add(o);}else{st.delete(o);}r.exterior_wall_orientations=Array.from(st);render();};});
+  Array.prototype.forEach.call(d.querySelectorAll('[data-wf]'),function(el){el.onchange=function(){var op=B.rooms[parseInt(el.dataset.wi)].openings[parseInt(el.dataset.wj)],v=parseFloat(el.value);if(!(v>0))return;if(el.dataset.wf==='w'){setWinWidth(op,v);}else{op._h=v;winRecalc(op);}render();};});
+  Array.prototype.forEach.call(d.querySelectorAll('[data-wdel]'),function(b){b.onclick=function(){var p=b.dataset.wdel.split('_');B.rooms[parseInt(p[0])].openings.splice(parseInt(p[1]),1);render();};});
 }
 function syncHidden(){
   var ls=B.rooms.map(function(r){return r.level;});
@@ -826,7 +864,8 @@ function onMove(ev){
   applyView();
 }
 function onUp(ev){
-  if(winDrag){ addWindow(winDrag.a, winDrag.b); winDrag=null; render(); return; }
+  if(winDrag){ var ref=addWindow(winDrag.a, winDrag.b); winDrag=null; render();
+    if(ref){ showHeightPopup(ref, ev.clientX, ev.clientY); } return; }
   if(pan && !panned){ onClick(ev); } pan=null;
 }
 document.addEventListener('DOMContentLoaded',function(){
@@ -849,6 +888,24 @@ document.addEventListener('DOMContentLoaded',function(){
   document.getElementById('t-mark').oninput=function(){ render(); };
   render();
 });
+"""
+
+
+# Rose des vents (overlay statique, coin du cadre) — N = +y (convention de l'app).
+_COMPASS_SVG = """
+<svg width="78" height="78" viewBox="0 0 78 78" aria-label="rose des vents"
+  style="position:absolute;top:10px;right:10px;background:rgba(255,255,255,.85);
+  border:1px solid var(--line);border-radius:50%;pointer-events:none">
+  <circle cx="39" cy="39" r="36" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+  <polygon points="39,7 33,39 45,39" fill="#c0392b"/>
+  <polygon points="39,71 33,39 45,39" fill="#9aa3ad"/>
+  <polygon points="7,39 39,33 39,45" fill="#cbd5e1"/>
+  <polygon points="71,39 39,33 39,45" fill="#cbd5e1"/>
+  <text x="39" y="20" text-anchor="middle" font-size="11" font-weight="700" fill="#c0392b">N</text>
+  <text x="39" y="68" text-anchor="middle" font-size="9" fill="#5b6b80">S</text>
+  <text x="70" y="42" text-anchor="middle" font-size="9" fill="#5b6b80">E</text>
+  <text x="8" y="42" text-anchor="middle" font-size="9" fill="#5b6b80">O</text>
+</svg>
 """
 
 
@@ -888,10 +945,13 @@ avant de tracer ; chaque pièce garde le sien.</p>
   <span id="scaleinfo" style="color:var(--muted);font-size:.85rem"></span>
   <span id="hint" style="color:#e8590c;font-weight:600"></span>
 </div>
+<div style="position:relative">
 <svg id="plan" viewBox="0 0 {w_px} {h_px}"
   style="width:100%;height:72vh;border:1px solid var(--line);border-radius:.6rem;background:#fff;touch-action:none;cursor:grab">
   <image href="{image_uri}" x="0" y="0" width="{w_px}" height="{h_px}"/>
 </svg>
+{_COMPASS_SVG}
+</div>
 <div id="roomlist" style="margin-top:1rem"></div>
 <form id="valform" method="post" action="/etude/resultat" onsubmit="syncHidden()">
   {hidden_fields}
