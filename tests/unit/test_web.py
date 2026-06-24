@@ -20,6 +20,12 @@ from zephyr.web import (
 )
 
 
+def _floors() -> list[dict[str, object]]:
+    return [
+        {"level": 0, "image_uri": "data:image/png;base64,ABC", "w": 800, "h": 600, "mpp": 0.0353}
+    ]
+
+
 def test_landing_has_value_prop_and_cta() -> None:
     h = render_landing()
     assert "Zéphyr" in h
@@ -127,7 +133,7 @@ def test_validation_fallback_form_when_no_polygons() -> None:
 
 
 def test_tracing_editor_renders() -> None:
-    h = render_tracing("data:image/png;base64,ABC", 800, 600, 0.0353, "")
+    h = render_tracing(_floors(), "")
     assert "Tracer les pièces" in h
     assert "data:image/png;base64,ABC" in h  # plan en fond
     assert "window.TRACE" in h and "finishRoom" in h
@@ -136,7 +142,7 @@ def test_tracing_editor_renders() -> None:
 
 def test_tracing_editor_has_zoom_pan() -> None:
     """§10.1 — zoom/pan : boutons + handlers molette/glisser dans le JS."""
-    h = render_tracing("data:image/png;base64,ABC", 800, 600, 0.0353, "")
+    h = render_tracing(_floors(), "")
     for ctrl in ('id="t-zin"', 'id="t-zout"', 'id="t-zreset"'):
         assert ctrl in h
     assert "onWheel" in h and "zoomAt" in h  # molette = zoom
@@ -147,7 +153,7 @@ def test_tracing_editor_has_zoom_pan() -> None:
 
 def test_tracing_editor_can_draw_windows() -> None:
     """§10.2 — tracer un châssis au glisser sur la façade."""
-    h = render_tracing("data:image/png;base64,ABC", 800, 600, 0.0353, "")
+    h = render_tracing(_floors(), "")
     assert 'id="t-win"' in h  # bouton « Tracer un châssis »
     assert "addWindow" in h and "nearestOri" in h  # longueur→largeur + façade auto
     assert "'window'" in h  # mode de tracé de châssis
@@ -155,20 +161,31 @@ def test_tracing_editor_can_draw_windows() -> None:
 
 def test_tracing_editor_window_height_and_table() -> None:
     """Châssis : popup hauteur au relâcher + largeur/hauteur éditables dans le tableau."""
-    h = render_tracing("data:image/png;base64,ABC", 800, 600, 0.0353, "")
+    h = render_tracing(_floors(), "")
     assert "showHeightPopup" in h  # bulle pour saisir la hauteur
     assert 'data-wf="w"' in h and 'data-wf="h"' in h  # largeur/hauteur éditables
     assert "setWinWidth" in h and "winRecalc" in h
 
 
 def test_tracing_editor_has_compass() -> None:
-    h = render_tracing("data:image/png;base64,ABC", 800, 600, 0.0353, "")
+    h = render_tracing(_floors(), "")
     assert "rose des vents" in h  # rose des vents dans le cadre
+
+
+def test_tracing_editor_multi_floor() -> None:
+    """Multi-PDF par étage : plusieurs fonds, bascule par niveau."""
+    floors = [
+        {"level": 0, "image_uri": "data:,A", "w": 800, "h": 600, "mpp": 0.02},
+        {"level": 1, "image_uri": "data:,B", "w": 700, "h": 500, "mpp": 0.03},
+    ]
+    h = render_tracing(floors, "")
+    assert '"floors"' in h and '"level": 1' in h  # niveaux embarqués
+    assert 'id="floorbar"' in h and 'id="planimg"' in h  # barre de niveaux + image dynamique
 
 
 def test_tracing_editor_has_levels() -> None:
     """§10.5 — multi-niveaux : niveau courant + niveau par pièce (plans/planche)."""
-    h = render_tracing("data:image/png;base64,ABC", 800, 600, 0.0353, "")
+    h = render_tracing(_floors(), "")
     assert 'id="t-level"' in h  # niveau courant des nouvelles pièces
     assert "curLevel()" in h  # appliqué au tracé
     assert "data-lvl=" in h  # réaffectation du niveau par pièce

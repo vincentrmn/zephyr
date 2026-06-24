@@ -370,7 +370,13 @@ score d'aptitude VNC et le bilan financier.</p>
   <b>DXF</b> ou un <b>PDF vectoriel</b> : il servira de fond pour tracer les pièces
   et les châssis à l'étape suivante. Un PDF <b>scanné</b> (image) n'est pas lu.
   Sans plan : saisie paramétrique (surface ci-dessous).</p>
+  <label>Plan unique (DXF, ou PDF A0 avec tous les niveaux)</label>
   <input type="file" name="dxf" accept=".dxf,.pdf" form="mainform">
+  <label style="margin-top:.6rem">…ou un <b>PDF par étage</b> (ordre = niveau : 1er = RdC = 0)</label>
+  <input type="file" name="floor_pdfs" accept=".pdf" multiple form="mainform">
+  <p style="color:var(--muted);font-size:.82rem;margin:.3rem 0 0">Si vous déposez
+  des PDF par étage, ils priment sur le plan unique ; vous basculez de niveau dans
+  l'éditeur.</p>
 </div>
 
 <div class="card" style="margin:1rem 0">
@@ -719,7 +725,10 @@ document.addEventListener('DOMContentLoaded', function(){ render(); panel(); });
 
 # Éditeur de TRACÉ : plan en fond + tracé des pièces au clic (vanilla JS).
 _TRACING_JS = """
-var T=window.TRACE, mpp=T.mpp, H=T.h, SVGNS='http://www.w3.org/2000/svg';
+var T=window.TRACE, floors=T.floors, fi=0, multi=floors.length>1, SVGNS='http://www.w3.org/2000/svg';
+var mpp=floors[0].mpp, H=floors[0].h;  // échelle/hauteur du niveau courant (sync via useFloor)
+function F(){ return floors[fi]; }
+function useFloor(){ mpp=F().mpp; H=F().h; }
 var inertiaEl=document.querySelector('input[name=inertia]');
 var B={id:'pdf', name:null, rooms:[], inertia_class:(inertiaEl?inertiaEl.value:'lourde'), num_levels:1, total_height_m:null, location:null, epw_path:null};
 var ORS=["N","NE","E","SE","S","SW","W","NW"];
@@ -727,9 +736,22 @@ var ORDIR={N:[0,1],NE:[0.7,0.7],E:[1,0],SE:[0.7,-0.7],S:[0,-1],SW:[-0.7,-0.7],W:
 var LABELS=["sejour","chambre","cuisine","sdb","wc","circulation","bureau","technique","autre"];
 var COLORS={sejour:"#cfe8cf",chambre:"#cfe0f5",cuisine:"#f5e6cf",sdb:"#cfeef0",wc:"#e6cff5",circulation:"#eeeeee",bureau:"#f5cfd6",technique:"#dddddd",autre:"#f0f0f0"};
 var sel=-1, mode='idle', draft=[], calib=[], winDrag=null;
-// Vue (viewBox) pour zoom/pan ; coordonnées en px-image (T.w × T.h).
-var view={x:0, y:0, w:T.w, h:T.h};
+// Vue (viewBox) pour zoom/pan ; coordonnées en px-image du niveau courant.
+var view={x:0, y:0, w:floors[0].w, h:floors[0].h};
 function applyView(){ svg().setAttribute('viewBox', view.x+' '+view.y+' '+view.w+' '+view.h); }
+// Charge le fond + l'échelle du niveau courant et réinitialise la vue.
+function applyFloor(){
+  useFloor(); var f=F(), img=document.getElementById('planimg');
+  if(img){ img.setAttribute('href', f.uri); img.setAttribute('width', f.w); img.setAttribute('height', f.h); }
+  view={x:0, y:0, w:f.w, h:f.h};
+}
+function goToLevel(lv){ for(var k=0;k<floors.length;k++){ if(floors[k].level===lv){ fi=k; applyFloor(); return true; } } return false; }
+function floorbar(){
+  var bar=document.getElementById('floorbar'); if(!bar) return;
+  if(!multi){ bar.innerHTML=''; return; }
+  bar.innerHTML=floors.map(function(f,k){return '<button type="button" class="'+(k===fi?'active':'')+'" data-fi="'+k+'">Niveau '+f.level+'</button>';}).join('');
+  Array.prototype.forEach.call(bar.querySelectorAll('button'),function(b){b.onclick=function(){fi=parseInt(b.dataset.fi);sel=-1;applyFloor();render();};});
+}
 function px(m){ return m/mpp; }  // mètres → px-image : tailles physiques, lisibles au zoom
 function markF(){ var e=document.getElementById('t-mark'); return e?(parseFloat(e.value)||1):1; }
 function mk(m){ return px(m*markF()); }  // repères de tracé (ronds/pointillés), taille réglable
@@ -746,9 +768,10 @@ var HINTS={draw:'Cliquez les coins de la pièce, puis « Terminer ».',calibrate
 function setMode(m){mode=m;draft=[];calib=[];winDrag=null;document.getElementById('hint').textContent=HINTS[m]||'';render();}
 function render(){
   var s=svg();
-  applyView();
+  applyView(); floorbar();
   while(s.lastChild && s.lastChild.tagName!=='image'){ s.removeChild(s.lastChild); }
   B.rooms.forEach(function(r,i){
+    if(multi && r.level!==F().level){ return; }  // un fond par niveau : on n'affiche que l'étage courant
     var xs=[],ys=[];
     var pts=r.polygon.map(function(m){var p=toPx(m[0],m[1]);xs.push(p[0]);ys.push(p[1]);return p[0]+','+p[1];}).join(' ');
     var pg=el('polygon',{points:pts, fill:(COLORS[r.label]||'#eee'), 'fill-opacity':0.45,
@@ -794,12 +817,12 @@ function onClick(ev){
     if(calib.length===2){
       var dpx=Math.hypot(calib[0][0]-calib[1][0],calib[0][1]-calib[1][1]);
       var real=parseFloat(prompt('Longueur réelle de ce segment, en mètres ?','5'));
-      if(real>0 && dpx>0){ mpp=real/dpx; }
+      if(real>0 && dpx>0){ mpp=real/dpx; F().mpp=mpp; }
       setMode('idle');
     } else render();
   }
 }
-function curLevel(){ var e=document.getElementById('t-level'); return e?(parseInt(e.value)||0):0; }
+function curLevel(){ if(multi){ return F().level; } var e=document.getElementById('t-level'); return e?(parseInt(e.value)||0):0; }
 function finishRoom(){
   if(mode!=='draw' || draft.length<3){ setMode('idle'); return; }
   var poly=draft.map(function(p){return toM(p[0],p[1]);});
@@ -872,8 +895,8 @@ function roomlist(){
       '<div style="font-size:.8rem;color:#888;margin:.4rem 0 .1rem">Châssis ('+(r.openings||[]).length+') — largeur l × hauteur h (m) :</div>'+
       wins+'</div>';
   }).join('');
-  Array.prototype.forEach.call(d.querySelectorAll('[data-sel]'),function(c){c.onclick=function(e){ if(e.target.closest('select,input,button,label')){ return; } sel=parseInt(c.dataset.sel); render(); };});
-  Array.prototype.forEach.call(d.querySelectorAll('[data-pick]'),function(b){b.onclick=function(){ sel=parseInt(b.dataset.pick); setMode('window'); };});
+  Array.prototype.forEach.call(d.querySelectorAll('[data-sel]'),function(c){c.onclick=function(e){ if(e.target.closest('select,input,button,label')){ return; } sel=parseInt(c.dataset.sel); if(multi){ goToLevel(B.rooms[sel].level); } render(); };});
+  Array.prototype.forEach.call(d.querySelectorAll('[data-pick]'),function(b){b.onclick=function(){ sel=parseInt(b.dataset.pick); if(multi){ goToLevel(B.rooms[sel].level); } setMode('window'); };});
   Array.prototype.forEach.call(d.querySelectorAll('[data-lab]'),function(s){s.onchange=function(){B.rooms[parseInt(s.dataset.lab)].label=s.value;render();};});
   Array.prototype.forEach.call(d.querySelectorAll('[data-lvl]'),function(n){n.onchange=function(){B.rooms[parseInt(n.dataset.lvl)].level=parseInt(n.value)||0;render();};});
   Array.prototype.forEach.call(d.querySelectorAll('[data-del]'),function(b){b.onclick=function(){B.rooms.splice(parseInt(b.dataset.del),1);sel=-1;render();};});
@@ -888,7 +911,7 @@ function syncHidden(){
 }
 // --- Zoom / pan (§10.1) : molette = zoom centré curseur, glisser = pan. ---
 function zoomAt(p, f){
-  var nw=Math.max(T.w*0.05, Math.min(T.w*5, view.w*f)), k=nw/view.w;
+  var nw=Math.max(F().w*0.05, Math.min(F().w*5, view.w*f)), k=nw/view.w;
   view.x=p[0]-(p[0]-view.x)*k; view.y=p[1]-(p[1]-view.y)*k;
   view.w=nw; view.h*=k; render();
 }
@@ -929,8 +952,10 @@ document.addEventListener('DOMContentLoaded',function(){
   };
   document.getElementById('t-zin').onclick=function(){ zoomAt([view.x+view.w/2, view.y+view.h/2], 0.8); };
   document.getElementById('t-zout').onclick=function(){ zoomAt([view.x+view.w/2, view.y+view.h/2], 1.25); };
-  document.getElementById('t-zreset').onclick=function(){ view={x:0,y:0,w:T.w,h:T.h}; render(); };
+  document.getElementById('t-zreset').onclick=function(){ view={x:0,y:0,w:F().w,h:F().h}; render(); };
   document.getElementById('t-mark').oninput=function(){ render(); };
+  if(multi){ var lw=document.getElementById('t-levelwrap'); if(lw){ lw.style.display='none'; } }
+  applyFloor();
   render();
 });
 """
@@ -971,15 +996,23 @@ function downloadStudy(){
 """
 
 
-def render_tracing(
-    image_uri: str, w_px: int, h_px: int, m_per_px: float, hidden_fields: str
-) -> str:
-    """Éditeur de **tracé** : plan en fond, l'ingénieur trace les pièces au clic.
+def render_tracing(floors: list[dict[str, object]], hidden_fields: str) -> str:
+    """Éditeur de **tracé** : plan(s) en fond, l'ingénieur trace les pièces au clic.
 
-    La mesure vient des clics calibrés (échelle), pas d'une lecture du raster.
+    `floors` = liste de niveaux ``{level, image_uri, w, h, mpp}`` (un seul élément
+    pour un plan/planche A0 unique ; plusieurs pour un PDF par étage). La mesure
+    vient des clics calibrés (échelle par niveau), pas d'une lecture du raster.
     Produit un `building_json` (polygones en mètres) → mêmes résultats.
     """
-    data = json.dumps({"mpp": m_per_px, "w": w_px, "h": h_px})
+    data = json.dumps({"floors": floors})
+    multi = len(floors) > 1
+    level_help = (
+        "Plusieurs niveaux : bascule de plan avec les boutons « Niveau » ; "
+        "les pièces tracées prennent le niveau affiché."
+        if multi
+        else "Plusieurs plans sur la planche (RdC, étage…) ? Règle le <b>niveau</b> "
+        "avant de tracer ; chaque pièce garde le sien."
+    )
     body = f"""
 <h1>Tracer les pièces sur le plan</h1>
 <p class="lead" style="color:var(--muted)">Ton plan est en fond. <b>Trace chaque
@@ -987,13 +1020,12 @@ pièce</b> (clique ses coins, puis « Terminer »), nomme-la et coche ses façad
 la <b>surface réelle</b> est calculée via l'échelle. Sélectionne une pièce puis
 <b>trace ses châssis</b> sur la façade (glisser → largeur de la baie). Calibre en
 cliquant une cote connue si besoin. <b>Molette</b> = zoom, <b>glisser</b> = déplacer
-le plan. Plusieurs plans sur la planche (RdC, étage…) ? Règle le <b>niveau</b>
-avant de tracer ; chaque pièce garde le sien.</p>
+le plan. {level_help}</p>
 <div class="tracebar">
   <button type="button" class="btn ghost" id="t-draw">✏️ Tracer une pièce</button>
   <button type="button" class="btn ghost" id="t-finish">✓ Terminer la pièce</button>
   <button type="button" class="btn ghost" id="t-win">🪟 Tracer un châssis</button>
-  <label style="display:inline-flex;align-items:center;gap:.3rem;font-weight:600;margin:0">
+  <label id="t-levelwrap" style="display:inline-flex;align-items:center;gap:.3rem;font-weight:600;margin:0">
     Niveau<input type="number" id="t-level" value="0" style="width:56px;padding:.3rem"></label>
   <button type="button" class="btn ghost" id="t-cal">📏 Calibrer l'échelle</button>
   <span style="display:inline-flex;gap:.3rem">
@@ -1007,10 +1039,11 @@ avant de tracer ; chaque pièce garde le sien.</p>
   <span id="scaleinfo" style="color:var(--muted);font-size:.85rem"></span>
   <span id="hint" style="color:#e8590c;font-weight:600"></span>
 </div>
+<div class="levelbar" id="floorbar"></div>
 <div style="position:relative">
-<svg id="plan" viewBox="0 0 {w_px} {h_px}"
+<svg id="plan" viewBox="0 0 100 100"
   style="width:100%;height:72vh;border:1px solid var(--line);border-radius:.6rem;background:#fff;touch-action:none;cursor:grab">
-  <image href="{image_uri}" x="0" y="0" width="{w_px}" height="{h_px}"/>
+  <image id="planimg" x="0" y="0"/>
 </svg>
 {_COMPASS_SVG}
 </div>

@@ -136,28 +136,37 @@ def _dxf_tracing_page(raw: object, hidden: str) -> str:
             segs.append((pts[-1], pts[0]))
     png, w_px, h_px, m_per_px = render_segments_background(segs)
     uri = "data:image/png;base64," + base64.b64encode(png).decode("ascii")
-    return render_tracing(uri, w_px, h_px, m_per_px, hidden)
+    floor = {"level": 0, "image_uri": uri, "w": w_px, "h": h_px, "mpp": m_per_px}
+    return render_tracing([floor], hidden)
 
 
-def _pdf_tracing_page(pdf_path: Path, hidden: str) -> str:
-    """Rend le PDF en image de fond + échelle, puis ouvre l'éditeur de tracé.
+def _pdf_floor(pdf_path: Path, level: int) -> dict[str, object]:
+    """Rend un PDF en image de fond + échelle → un « niveau » pour l'éditeur de tracé.
 
-    Échelle par défaut estimée depuis le format A0 (1189 mm) à 1:50 ; l'ingénieur
-    recalibre au clic d'une cote connue si besoin (formats/échelles variés).
+    Échelle estimée depuis le format A0 (1189 mm) à 1:50, déduite des dimensions
+    réelles (indépendante du zoom de rastérisation) ; l'ingénieur recalibre au clic
+    d'une cote connue si besoin.
     """
     import base64
 
     from zephyr.ingestion import render_pdf_page
 
-    # Rendu net : le zoom/pan permet d'agrandir sans pixelliser → on rastérise haut,
-    # plafonné à 4500 px de côté pour borner le poids du PNG embarqué.
     png, w_px, h_px, w_pt, _h_pt = render_pdf_page(pdf_path, zoom=3.0, max_side_px=4500)
     uri = "data:image/png;base64," + base64.b64encode(png).decode("ascii")
-    # Échelle déduite des dimensions réelles (indépendante du zoom effectif) :
-    # A0 (1189 mm) à 1:50 → largeur réelle ≈ 59,45 m, répartie sur w_px pixels.
     mm_per_pt = (1189.0 / w_pt) if w_pt > 0 else 0.3528  # hypothèse A0
     m_per_px = mm_per_pt * 50.0 / 1000.0 * w_pt / max(w_px, 1)  # 1:50 par défaut
-    return render_tracing(uri, w_px, h_px, m_per_px, hidden)
+    return {"level": level, "image_uri": uri, "w": w_px, "h": h_px, "mpp": m_per_px}
+
+
+def _pdf_tracing_page(pdf_path: Path, hidden: str) -> str:
+    """Éditeur de tracé sur un PDF unique (A0 / planche multi-plans)."""
+    return render_tracing([_pdf_floor(pdf_path, 0)], hidden)
+
+
+def _multi_pdf_tracing_page(pdf_paths: list[Path], hidden: str) -> str:
+    """Éditeur de tracé multi-niveaux : un PDF par étage (ordre = niveau, 1er = RdC)."""
+    floors = [_pdf_floor(p, i) for i, p in enumerate(pdf_paths)]
+    return render_tracing(floors, hidden)
 
 
 def _parametric(cfg: dict[str, str]) -> Building:
@@ -249,6 +258,7 @@ async def resume_study(study: UploadFile | None = File(default=None)) -> str:  #
 @app.post("/etude", response_class=HTMLResponse)
 async def submit_config(
     dxf: UploadFile | None = File(default=None),  # noqa: B008
+    floor_pdfs: list[UploadFile] = File(default=[]),  # noqa: B008 - un PDF par étage
     nature: str = Form("neuf"),
     project_type: str = Form("mixte"),
     location: str = Form("Luxembourg"),
@@ -282,6 +292,25 @@ async def submit_config(
         "security": bool(security), "occ_incompatible": bool(occ_incompatible),
     }
 
+    cfg_with_flags = {**cfg, **{k: ("on" if v else "") for k, v in flags.items()}}
+
+    # Multi-niveaux : un PDF par étage (ordre d'upload = niveau, 1er = RdC = 0).
+    floor_files = [f for f in (floor_pdfs or []) if f is not None and (f.filename or "")]
+    if floor_files:
+        paths: list[Path] = []
+        for f in floor_files:
+            data = await f.read()
+            if not data:
+                continue
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                tmp.write(data)
+                paths.append(Path(tmp.name))
+        if paths:
+            try:
+                return _multi_pdf_tracing_page(paths, _hidden_fields(cfg_with_flags, None))
+            except Exception as exc:  # noqa: BLE001 - surface l'erreur (PDF illisible…)
+                return render_error(str(exc))
+
     raw = await dxf.read() if dxf is not None else b""
     name = (dxf.filename or "").lower() if dxf is not None else ""
     if raw:
@@ -290,7 +319,6 @@ async def submit_config(
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
             tmp.write(raw)
             tmp_path = Path(tmp.name)
-        cfg_with_flags = {**cfg, **{k: ("on" if v else "") for k, v in flags.items()}}
         hidden = _hidden_fields(cfg_with_flags, None)
         try:
             if is_pdf:

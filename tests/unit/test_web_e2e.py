@@ -120,6 +120,29 @@ def test_cpe_upload_reads_text_then_back_to_form(monkeypatch: object) -> None:
     assert 'name="u_wall"' in r.text  # le formulaire est re-rendu
 
 
+def test_multi_pdf_per_floor_tracing() -> None:
+    """§10.5 — un PDF par étage → éditeur de tracé multi-niveaux (bascule de fond)."""
+    pytest.importorskip("fitz")
+    import io
+
+    import fitz
+
+    def vec_pdf() -> bytes:
+        doc = fitz.open()
+        page = doc.new_page(width=600, height=400)
+        page.draw_line((10, 10), (300, 10))
+        return bytes(doc.tobytes())
+
+    files = [
+        ("floor_pdfs", ("rdc.pdf", io.BytesIO(vec_pdf()), "application/pdf")),
+        ("floor_pdfs", ("etage.pdf", io.BytesIO(vec_pdf()), "application/pdf")),
+    ]
+    r = client.post("/etude", files=files, data={"project_type": "logement"})
+    assert r.status_code == 200
+    assert "window.TRACE" in r.text and '"floors"' in r.text
+    assert 'id="floorbar"' in r.text and r.text.count('"level":') >= 2
+
+
 def test_resume_study_from_file() -> None:
     """Sauvegarde/reprise sans BDD : un .json d'étude rouvre la géométrie."""
     import io
@@ -145,7 +168,8 @@ def test_config_has_resume_and_editor_has_download() -> None:
     from zephyr.web import render_tracing
 
     assert "Reprendre une étude" in client.get("/etude").text
-    assert "downloadStudy()" in render_tracing("data:image/png;base64,A", 800, 600, 0.03, "")
+    floors = [{"level": 0, "image_uri": "data:image/png;base64,A", "w": 800, "h": 600, "mpp": 0.03}]
+    assert "downloadStudy()" in render_tracing(floors, "")
 
 
 def test_cpe_upload_rejects_scan() -> None:
