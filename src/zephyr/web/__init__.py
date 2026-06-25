@@ -742,7 +742,7 @@ function applyView(){ svg().setAttribute('viewBox', view.x+' '+view.y+' '+view.w
 // Charge le fond + l'échelle du niveau courant et réinitialise la vue.
 function applyFloor(){
   useFloor(); var f=F(), img=document.getElementById('planimg');
-  if(img){ img.setAttribute('href', f.uri); img.setAttribute('width', f.w); img.setAttribute('height', f.h); }
+  if(img){ img.setAttribute('href', f.image_uri); img.setAttributeNS('http://www.w3.org/1999/xlink','href', f.image_uri); img.setAttribute('width', f.w); img.setAttribute('height', f.h); }
   view={x:0, y:0, w:f.w, h:f.h};
 }
 function goToLevel(lv){ for(var k=0;k<floors.length;k++){ if(floors[k].level===lv){ fi=k; applyFloor(); return true; } } return false; }

@@ -181,6 +181,8 @@ def test_tracing_editor_multi_floor() -> None:
     h = render_tracing(floors, "")
     assert '"floors"' in h and '"level": 1' in h  # niveaux embarqués
     assert 'id="floorbar"' in h and 'id="planimg"' in h  # barre de niveaux + image dynamique
+    # Le JS doit lire la bonne clé d'image (régression : f.uri ≠ image_uri).
+    assert "f.image_uri" in h and "f.uri" not in h
 
 
 def test_tracing_editor_has_levels() -> None:
