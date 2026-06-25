@@ -175,6 +175,7 @@ def test_tracing_editor_window_height_and_table() -> None:
     h = render_tracing(_floors(), "")
     assert "showHeightPopup" in h  # bulle pour saisir la hauteur
     assert 'data-wf="w"' in h and 'data-wf="h"' in h  # largeur/hauteur éditables
+    assert 'data-wf="facade"' in h  # façade corrigeable à la main par châssis
     assert "setWinWidth" in h and "winRecalc" in h
 
 

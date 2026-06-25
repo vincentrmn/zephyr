@@ -908,7 +908,12 @@ function addWindow(a,b){
   var r=B.rooms[sel]; if(!r){ return; }
   var ma=toM(a[0],a[1]), mb=toM(b[0],b[1]);
   var lenM=Math.hypot(ma[0]-mb[0],ma[1]-mb[1]);
-  var c=centroidM(r), o=nearestOri((ma[0]+mb[0])/2-c[0],(ma[1]+mb[1])/2-c[1]);
+  // Façade = normale au mur tracé, orientée vers l'extérieur (loin du centroïde).
+  // Plus robuste que (milieu - centroïde) pour pièces allongées / segments courts.
+  var c=centroidM(r), ex=mb[0]-ma[0], ey=mb[1]-ma[1], nx=-ey, ny=ex;
+  var ox=(ma[0]+mb[0])/2-c[0], oy=(ma[1]+mb[1])/2-c[1];
+  if(nx*ox+ny*oy<0){ nx=-nx; ny=-ny; }
+  var o=nearestOri(nx,ny);
   var sashEl=document.querySelector('input[name=sash]'), h=sashEl?(parseFloat(sashEl.value)||1.5):1.5;
   var w=Math.max(lenM,0.1);
   var op={id:r.id+'_w'+r.openings.length, kind:'window', orientation:o,
@@ -949,8 +954,9 @@ function roomlist(){
     var lab=LABELS.map(function(l){return '<option value="'+l+'"'+(l===r.label?' selected':'')+'>'+l+'</option>';}).join('');
     var chips=ORS.map(function(o){return '<label class="chip"><input type="checkbox" data-i="'+i+'" data-or="'+o+'"'+(r.exterior_wall_orientations.indexOf(o)>=0?' checked':'')+'>'+o+'</label>';}).join('');
     var wins=(r.openings||[]).map(function(op,j){
+      var fopts=ORS.map(function(o){return '<option value="'+o+'"'+(o===op.orientation?' selected':'')+'>'+o+'</option>';}).join('');
       return '<div class="winrow" style="gap:.3rem">'+
-        '<span style="font-size:.8rem;color:#0e9aa7;font-weight:700;width:1.8rem">'+(op.orientation||'?')+'</span>'+
+        '<select data-wi="'+i+'" data-wj="'+j+'" data-wf="facade" title="façade" style="padding:.2rem">'+fopts+'</select>'+
         '<label style="font-size:.78rem;color:#555;margin:0">l<input data-wi="'+i+'" data-wj="'+j+'" data-wf="w" type="number" step="0.1" value="'+fmt(op._w!=null?op._w:0)+'" style="width:62px;padding:.2rem;margin-left:.15rem"></label>'+
         '<label style="font-size:.78rem;color:#555;margin:0">h<input data-wi="'+i+'" data-wj="'+j+'" data-wf="h" type="number" step="0.1" value="'+fmt(op._h!=null?op._h:0)+'" style="width:62px;padding:.2rem;margin-left:.15rem"></label>'+
         '<span style="font-size:.78rem;color:#888">'+fmt(op.area_m2)+' m\\u00b2</span>'+
@@ -973,7 +979,13 @@ function roomlist(){
   Array.prototype.forEach.call(d.querySelectorAll('[data-lvl]'),function(n){n.onchange=function(){B.rooms[parseInt(n.dataset.lvl)].level=parseInt(n.value)||0;render();};});
   Array.prototype.forEach.call(d.querySelectorAll('[data-del]'),function(b){b.onclick=function(){B.rooms.splice(parseInt(b.dataset.del),1);sel=-1;render();};});
   Array.prototype.forEach.call(d.querySelectorAll('[data-or]'),function(c){c.onchange=function(){var r=B.rooms[parseInt(c.dataset.i)],o=c.dataset.or,st=new Set(r.exterior_wall_orientations);if(c.checked){st.add(o);}else{st.delete(o);}r.exterior_wall_orientations=Array.from(st);render();};});
-  Array.prototype.forEach.call(d.querySelectorAll('[data-wf]'),function(el){el.onchange=function(){var op=B.rooms[parseInt(el.dataset.wi)].openings[parseInt(el.dataset.wj)],v=parseFloat(el.value);if(!(v>0))return;if(el.dataset.wf==='w'){setWinWidth(op,v);}else{op._h=v;winRecalc(op);}render();};});
+  Array.prototype.forEach.call(d.querySelectorAll('[data-wf]'),function(el){el.onchange=function(){
+    var rm=B.rooms[parseInt(el.dataset.wi)], op=rm.openings[parseInt(el.dataset.wj)];
+    if(el.dataset.wf==='facade'){ op.orientation=el.value; if(rm.exterior_wall_orientations.indexOf(el.value)<0){ rm.exterior_wall_orientations.push(el.value); } render(); return; }
+    var v=parseFloat(el.value); if(!(v>0)) return;
+    if(el.dataset.wf==='w'){ setWinWidth(op,v); } else { op._h=v; winRecalc(op); }
+    render();
+  };});
   Array.prototype.forEach.call(d.querySelectorAll('[data-wdel]'),function(b){b.onclick=function(){var p=b.dataset.wdel.split('_');B.rooms[parseInt(p[0])].openings.splice(parseInt(p[1]),1);render();};});
 }
 function syncHidden(){
