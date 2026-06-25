@@ -51,6 +51,17 @@ def test_study_form_blocks_and_new_fields() -> None:
     assert "Plan &amp; tracé" in h and "🏗️ Projet" in h  # blocs en cartes
 
 
+def test_study_form_cpe_or_manual_toggle() -> None:
+    """Choix exclusif CPE / saisie manuelle (segmented toggle) + flag extraction."""
+    h = render_study_form()
+    assert 'name="cpe_mode"' in h and 'class="seg"' in h
+    assert 'id="cpe-upload"' in h and 'id="envelope-block"' in h
+    assert "__CPE_EXTRACTED__=false" in h  # pas d'extraction encore
+    # Après extraction (prefill) : flag vrai → les valeurs extraites s'affichent.
+    h2 = render_study_form({"u_wall": "0.122"})
+    assert "__CPE_EXTRACTED__=true" in h2 and 'value="0.122"' in h2
+
+
 def test_study_form_prefills_envelope() -> None:
     h = render_study_form({"u_wall": "0.18", "n50": "0.6", "inertia": "lourde", "area": "739.3"})
     assert 'name="u_wall" value="0.18"' in h

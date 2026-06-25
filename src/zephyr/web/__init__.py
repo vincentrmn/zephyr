@@ -209,6 +209,31 @@ table.kv td:last-child { text-align: right; font-variant-numeric: tabular-nums; 
   .steps, .crit-grid, .kpis, .form-grid { grid-template-columns: 1fr; }
   .hero h1 { font-size: 2rem; }
 }
+/* Page config : cartes, uploaders, toggle segmenté */
+.card > h2 { display: flex; align-items: center; gap: .5rem; font-size: 1.15rem; margin: 0 0 .2rem; }
+.card .sub { color: var(--muted); font-size: .9rem; margin: 0 0 1rem; }
+.field { margin: .8rem 0; }
+.field > .lab { font-weight: 600; font-size: .92rem; margin-bottom: .35rem; }
+.field .hint { color: var(--muted); font-size: .82rem; margin: .35rem 0 0; }
+.uploader {
+  border: 1.5px dashed #cdd9e3; border-radius: .6rem; padding: 1rem 1.1rem; background: #fbfdfe;
+}
+.uploader + .uploader { margin-top: .8rem; }
+input[type=file] {
+  width: 100%; font: inherit; color: var(--muted); border: 0; padding: 0; background: none;
+}
+input[type=file]::file-selector-button {
+  background: #eef6f7; color: var(--teal-d); border: 1px solid var(--teal);
+  border-radius: .45rem; padding: .45rem .9rem; font-weight: 600; cursor: pointer;
+  margin-right: .8rem;
+}
+input[type=file]::file-selector-button:hover { background: var(--teal); color: #fff; }
+.seg { display: inline-flex; border: 1px solid var(--teal); border-radius: .55rem; overflow: hidden; }
+.seg label { padding: .5rem 1rem; cursor: pointer; font-weight: 600; color: var(--teal-d);
+  user-select: none; }
+.seg label + label { border-left: 1px solid var(--teal); }
+.seg label.on { background: var(--teal); color: #fff; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
 """
 
 _DISCLAIMER = (
@@ -290,6 +315,30 @@ def render_error(message: str) -> str:
     return _layout("Zéphyr — erreur", body, cta=False)
 
 
+# Bascule CPE / saisie manuelle (choix exclusif) — vanilla, validé par node --check.
+_CONFIG_JS = """
+(function(){
+  function sync(){
+    var r=document.querySelector('input[name=cpe_mode]:checked'), m=r?r.value:'cpe';
+    Array.prototype.forEach.call(document.querySelectorAll('.seg label'), function(l){
+      l.classList.toggle('on', l.querySelector('input').value===m);
+    });
+    var up=document.getElementById('cpe-upload'), env=document.getElementById('envelope-block'),
+        hint=document.getElementById('cpe-hint'), ex=window.__CPE_EXTRACTED__;
+    if(up){ up.style.display = (m==='cpe')?'':'none'; }
+    if(hint){ hint.style.display = (m==='cpe' && !ex)?'':'none'; }
+    if(env){ env.style.display = (m==='manual' || (m==='cpe' && ex))?'':'none'; }
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    Array.prototype.forEach.call(document.querySelectorAll('input[name=cpe_mode]'), function(r){
+      r.addEventListener('change', sync);
+    });
+    sync();
+  });
+})();
+"""
+
+
 def render_study_form(
     prefill: Mapping[str, str] | None = None, *, cpe_banner: str = ""
 ) -> str:
@@ -344,92 +393,99 @@ def render_study_form(
         [("pvc", "PVC"), ("alu", "Aluminium"), ("bois", "Bois"), ("mixte", "Bois/alu")],
         "pvc",
     )
+    extracted = bool(p)
     body = f"""
 <h1>Nouvelle étude</h1>
-<p class="lead" style="color:var(--muted)">Importez un plan à tracer et un CPE
-(optionnels), validez l'enveloppe, renseignez le projet. On calcule ensuite le
-score d'aptitude VNC et le bilan financier.</p>
+<p class="lead" style="color:var(--muted);max-width:680px">Importez un plan à
+tracer, renseignez l'enveloppe (depuis un CPE ou à la main) et le projet. On
+calcule ensuite le score d'aptitude VNC et le bilan financier.</p>
 
-<!-- Formulaire principal (vide) : les champs des cartes lui sont rattachés via form="mainform". -->
+<!-- Formulaire principal (vide) : les champs des cartes y sont rattachés via form="mainform". -->
 <form id="mainform" method="post" action="/etude" enctype="multipart/form-data"></form>
 
-<div class="card" style="margin:1rem 0;background:#f0faf8">
-  <h2 style="margin-top:0">↩️ Reprendre une étude</h2>
-  <p style="color:var(--muted);font-size:.9rem;margin:.2rem 0 .6rem">Vous avez
-  téléchargé une étude (fichier <code>.json</code>) ? Rechargez-la ici pour
-  reprendre la géométrie et la config là où vous en étiez.</p>
-  <form method="post" action="/etude/reprendre" enctype="multipart/form-data">
-    <input type="file" name="study" accept=".json,application/json">
-    <button class="btn ghost" type="submit">Reprendre →</button>
-  </form>
+<div class="card" style="margin:1.2rem 0">
+  <h2>📐 Plan &amp; tracé</h2>
+  <p class="sub">Le plan sert de fond pour tracer les pièces et les châssis à
+  l'étape suivante. Format vectoriel uniquement (un PDF scanné n'est pas lu).</p>
+  <div class="uploader">
+    <div class="field" style="margin:0">
+      <div class="lab">Plan unique — DXF ou PDF A0 (tous les niveaux sur une planche)</div>
+      <input type="file" name="dxf" accept=".dxf,.pdf" form="mainform">
+    </div>
+  </div>
+  <div class="uploader">
+    <div class="field" style="margin:0">
+      <div class="lab">…ou un PDF par étage</div>
+      <input type="file" name="floor_pdfs" accept=".pdf" multiple form="mainform">
+      <p class="hint">Ordre d'import = niveau (1<sup>er</sup> = RdC). Prioritaire sur
+      le plan unique ; vous basculez de niveau dans l'éditeur.</p>
+    </div>
+  </div>
+  <p class="hint">Sans plan, l'étude reste possible en paramétrique (surface plus bas).</p>
 </div>
 
-<div class="card" style="margin:1rem 0">
-  <h2 style="margin-top:0">📐 Plan &amp; tracé</h2>
-  <p style="color:var(--muted);font-size:.9rem;margin:.2rem 0 .6rem">Déposez un
-  <b>DXF</b> ou un <b>PDF vectoriel</b> : il servira de fond pour tracer les pièces
-  et les châssis à l'étape suivante. Un PDF <b>scanné</b> (image) n'est pas lu.
-  Sans plan : saisie paramétrique (surface ci-dessous).</p>
-  <label>Plan unique (DXF, ou PDF A0 avec tous les niveaux)</label>
-  <input type="file" name="dxf" accept=".dxf,.pdf" form="mainform">
-  <label style="margin-top:.6rem">…ou un <b>PDF par étage</b> (ordre = niveau : 1er = RdC = 0)</label>
-  <input type="file" name="floor_pdfs" accept=".pdf" multiple form="mainform">
-  <p style="color:var(--muted);font-size:.82rem;margin:.3rem 0 0">Si vous déposez
-  des PDF par étage, ils priment sur le plan unique ; vous basculez de niveau dans
-  l'éditeur.</p>
-</div>
+<div class="card" style="margin:1.2rem 0">
+  <h2>🏢 Enveloppe</h2>
+  <p class="sub">D'où viennent les valeurs (U, n50, inertie…) ?</p>
+  <div class="seg" role="tablist">
+    <label class="on"><input type="radio" name="cpe_mode" value="cpe" checked> 📄 J'ai un CPE</label>
+    <label><input type="radio" name="cpe_mode" value="manual"> ✍️ Saisie manuelle</label>
+  </div>
 
-<div class="card" style="margin:1rem 0">
-  <h2 style="margin-top:0">📄 CPE — passeport énergétique</h2>
-  <p style="color:var(--muted);font-size:.9rem;margin:.2rem 0 .6rem">Pré-remplit
-  l'enveloppe (U, n50, inertie, surface). Valeurs <b>vérifiées dans le texte source</b>
-  puis posées ci-dessous — vous validez/corrigez chaque champ. Sans CPE (ou CPE
-  scanné) : saisie à la main.</p>
-  <form method="post" action="/etude/cpe" enctype="multipart/form-data">
-    <input type="file" name="cpe" accept=".pdf">
-    <button class="btn ghost" type="submit">Extraire le CPE →</button>
-  </form>
+  <div id="cpe-upload" class="uploader" style="margin-top:1rem">
+    <div class="field" style="margin:0">
+      <div class="lab">Passeport énergétique (PDF vectoriel)</div>
+      <form method="post" action="/etude/cpe" enctype="multipart/form-data"
+        style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
+        <input type="file" name="cpe" accept=".pdf">
+        <button class="btn" type="submit">Extraire</button>
+      </form>
+      <p class="hint">Les valeurs sont vérifiées dans le texte source puis posées
+      ci-dessous — vous validez ou corrigez chacune.</p>
+    </div>
+  </div>
+  <p id="cpe-hint" class="hint" style="margin-top:.8rem">Téléchargez votre CPE pour
+  pré-remplir l'enveloppe, ou passez en « Saisie manuelle ».</p>
   {cpe_banner}
-</div>
 
-<div class="card" style="margin:1rem 0">
-  <h2 style="margin-top:0">🏢 Enveloppe (issue du CPE — à valider)</h2>
-  <div class="form-grid">
-    <div><label>U murs (W/m²K)</label>
-      <input type="number" name="u_wall" value="{v("u_wall", "0.20")}" step="0.01" form="mainform"></div>
-    <div><label>Uw vitrage (W/m²K)</label>
-      <input type="number" name="u_window" value="{v("u_window", "0.9")}" step="0.1" form="mainform"></div>
-    <div><label>Ratio vitrage / surface au sol</label>
-      <input type="number" name="glazing" value="{v("glazing", "0.18")}" step="0.01" form="mainform"></div>
-    <div><label>Hauteur des châssis par défaut (m)</label>
-      <input type="number" name="sash" value="{v("sash", "1.5")}" step="0.1" form="mainform"></div>
-    <div><label>Perméabilité à l'air n50 (vol/h)</label>
-      <input type="number" name="n50" value="{v("n50", "1.5")}" step="0.1" form="mainform"></div>
-    <div><label>Inertie (composition des parois)</label>{inertia_sel}</div>
+  <div id="envelope-block" style="margin-top:1rem">
+    <div class="form-grid">
+      <div class="field"><div class="lab">U murs (W/m²K)</div>
+        <input type="number" name="u_wall" value="{v("u_wall", "0.20")}" step="0.01" form="mainform"></div>
+      <div class="field"><div class="lab">Uw vitrage (W/m²K)</div>
+        <input type="number" name="u_window" value="{v("u_window", "0.9")}" step="0.1" form="mainform"></div>
+      <div class="field"><div class="lab">Ratio vitrage / surface au sol</div>
+        <input type="number" name="glazing" value="{v("glazing", "0.18")}" step="0.01" form="mainform"></div>
+      <div class="field"><div class="lab">Hauteur des châssis par défaut (m)</div>
+        <input type="number" name="sash" value="{v("sash", "1.5")}" step="0.1" form="mainform"></div>
+      <div class="field"><div class="lab">Perméabilité n50 (vol/h)</div>
+        <input type="number" name="n50" value="{v("n50", "1.5")}" step="0.1" form="mainform"></div>
+      <div class="field"><div class="lab">Inertie (parois)</div>{inertia_sel}</div>
+    </div>
   </div>
 </div>
 
-<div class="card" style="margin:1rem 0">
-  <h2 style="margin-top:0">🏗️ Projet</h2>
+<div class="card" style="margin:1.2rem 0">
+  <h2>🏗️ Projet</h2>
   <div class="form-grid">
-    <div><label>Nature</label>{nature_sel}</div>
-    <div><label>Type de projet</label>{ptype_sel}</div>
-    <div><label>Type de chauffage</label>{chauffage_sel}</div>
-    <div><label>Eau chaude sanitaire (ECS)</label>{ecs_sel}</div>
-    <div><label>Matériau des châssis</label>{chassis_sel}</div>
-    <div><label>Localisation (climat)</label>
+    <div class="field"><div class="lab">Nature</div>{nature_sel}</div>
+    <div class="field"><div class="lab">Type de projet</div>{ptype_sel}</div>
+    <div class="field"><div class="lab">Type de chauffage</div>{chauffage_sel}</div>
+    <div class="field"><div class="lab">Eau chaude sanitaire (ECS)</div>{ecs_sel}</div>
+    <div class="field"><div class="lab">Matériau des châssis</div>{chassis_sel}</div>
+    <div class="field"><div class="lab">Localisation (climat)</div>
       <input type="text" name="location" value="{v("location", "Luxembourg")}" form="mainform"></div>
-    <div><label>Angle du Nord (° ; 0 = +y du plan)</label>
+    <div class="field"><div class="lab">Angle du Nord (°, 0 = haut du plan)</div>
       <input type="number" name="north" value="{v("north", "0")}" step="5" form="mainform"></div>
-    <div><label>Surface (m²) — facultatif, recoupée au tracé/DXF</label>
+    <div class="field"><div class="lab">Surface (m²) — facultatif, recoupée au tracé</div>
       <input type="number" name="area" value="{v("area", "1200")}" step="10" form="mainform"></div>
-    <div><label>Niveaux — si pas de plan</label>
+    <div class="field"><div class="lab">Niveaux — si pas de plan</div>
       <input type="number" name="levels" value="{v("levels", "2")}" min="1" form="mainform"></div>
   </div>
 </div>
 
-<div class="card" style="margin:1rem 0">
-  <h2 style="margin-top:0">📍 Contexte du site</h2>
+<div class="card" style="margin:1.2rem 0">
+  <h2>📍 Contexte du site</h2>
   <label class="check"><input type="checkbox" name="noise" form="mainform"> Bruit extérieur excessif</label>
   <label class="check"><input type="checkbox" name="pollution" form="mainform"> Pollution / pollen élevés</label>
   <label class="check"><input type="checkbox" name="security" form="mainform"> Risque de sécurité au RdC</label>
@@ -438,6 +494,22 @@ score d'aptitude VNC et le bilan financier.</p>
 </div>
 
 <p style="margin:1.4rem 0"><button class="btn" type="submit" form="mainform">Continuer →</button></p>
+
+<div class="card" style="margin:1.2rem 0;background:#f7faf9">
+  <h2>↩️ Reprendre une étude</h2>
+  <p class="sub">Vous avez déjà téléchargé une étude (fichier .json) ? Rechargez-la
+  pour repartir de votre géométrie et de votre config.</p>
+  <div class="uploader">
+    <form method="post" action="/etude/reprendre" enctype="multipart/form-data"
+      style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap">
+      <input type="file" name="study" accept=".json,application/json">
+      <button class="btn ghost" type="submit">Reprendre</button>
+    </form>
+  </div>
+</div>
+
+<script>window.__CPE_EXTRACTED__={"true" if extracted else "false"};</script>
+<script>{_CONFIG_JS}</script>
 """
     return _layout("Zéphyr — nouvelle étude", body, cta=False)
 
