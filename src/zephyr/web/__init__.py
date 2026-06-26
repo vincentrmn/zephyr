@@ -238,7 +238,7 @@ input[type=file]::file-selector-button:hover { background: var(--teal); color: #
 /* Éditeur de tracé : grand plan collant à gauche, palette + liste à droite */
 .trace-layout { display: grid; grid-template-columns: 1fr 340px; gap: 1rem; align-items: start; }
 .trace-canvas-wrap { position: sticky; top: .6rem; }
-.trace-canvas-wrap svg { width: 100%; height: 84vh; display: block; background: #fff;
+.trace-canvas-wrap #plan { width: 100%; height: 84vh; display: block; background: #fff;
   border: 1px solid var(--line); border-radius: .6rem; touch-action: none; cursor: grab; }
 .palette { position: sticky; top: .6rem; display: flex; flex-direction: column; gap: .45rem;
   background: var(--card); border: 1px solid var(--line); border-radius: .7rem; padding: .8rem; }
@@ -253,7 +253,7 @@ input[type=file]::file-selector-button:hover { background: var(--teal); color: #
 @media (max-width: 980px) {
   .trace-layout { grid-template-columns: 1fr; }
   .trace-canvas-wrap, .palette { position: static; }
-  .trace-canvas-wrap svg { height: 62vh; }
+  .trace-canvas-wrap #plan { height: 62vh; }
 }
 """
 
@@ -1078,8 +1078,8 @@ document.addEventListener('DOMContentLoaded',function(){
 # Rose des vents (overlay statique, coin du cadre) — N = +y (convention de l'app).
 _COMPASS_SVG = """
 <svg width="78" height="78" viewBox="0 0 78 78" aria-label="rose des vents"
-  style="position:absolute;top:10px;right:10px;background:rgba(255,255,255,.85);
-  border:1px solid var(--line);border-radius:50%;pointer-events:none">
+  style="position:absolute;top:10px;right:10px;width:78px;height:78px;
+  background:rgba(255,255,255,.85);border:1px solid var(--line);border-radius:50%;pointer-events:none">
   <circle cx="39" cy="39" r="36" fill="none" stroke="#cbd5e1" stroke-width="1"/>
   <polygon points="39,7 33,39 45,39" fill="#c0392b"/>
   <polygon points="39,71 33,39 45,39" fill="#9aa3ad"/>
