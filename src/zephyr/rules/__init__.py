@@ -253,7 +253,7 @@ def _insulation_criterion(envelope: EnvelopeData, weight: float) -> ScoreCriteri
             label="Isolation (niveau d'isolation)",
             score=60.0,
             weight=weight,
-            detail="U non renseignés (CPE manquant) — note neutre par défaut",
+            detail="U non renseignés (CPE manquant) : note neutre par défaut",
             scale="U mur 0,15 → 100 jusqu'à 1,0 → 0 (poids 70 %) ; Uw 0,8 → 100 jusqu'à 2,5 → 0.",
             recommendation="Renseigner le CPE (U murs/vitrages) pour fiabiliser le bilan.",
         )
@@ -297,7 +297,7 @@ def _site_flags(site: SiteContext) -> _SiteFlags:
     flags = _SiteFlags()
     if site.pollution_high:
         flags.hard.append(
-            "Pollution/pollen élevés : air extérieur peu admissible sans filtration — "
+            "Pollution ou pollen élevés : air extérieur peu admissible sans filtration ; "
             "VNC pure compromise."
         )
     if not site.occupancy_compatible:
