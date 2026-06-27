@@ -300,9 +300,16 @@ select { appearance: none; -webkit-appearance: none; -moz-appearance: none;
 input::placeholder { color: var(--faint); }
 input:focus, select:focus, textarea:focus { border-color: var(--primary); outline: none;
   background: var(--surface); box-shadow: 0 0 0 3px var(--ring); }
-/* Cases à cocher / radios : teinte de la marque, plus de gros carré système */
-input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: 1.05em; height: 1.05em;
-  cursor: pointer; }
+/* Cases à cocher : entièrement stylées (aucun carré système / fond noir) */
+input[type=checkbox] { appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  width: 1.1em; height: 1.1em; border: 1.5px solid var(--faint); border-radius: .28rem;
+  background: var(--surface); cursor: pointer; position: relative; vertical-align: -.18em; flex: none; }
+input[type=checkbox]:hover { border-color: var(--primary); }
+input[type=checkbox]:checked { background: var(--primary); border-color: var(--primary); }
+input[type=checkbox]:checked::after { content: ""; position: absolute; left: .32em; top: .12em;
+  width: .26em; height: .55em; border: solid var(--on-primary); border-width: 0 2px 2px 0;
+  transform: rotate(45deg); }
+input[type=radio] { accent-color: var(--primary); cursor: pointer; }
 .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 var(--s4); }
 /* En-tête de la page config : titre + reprise discrète */
 .form-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem;
@@ -318,9 +325,14 @@ input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: 1
   border: 1px solid var(--line); border-radius: var(--r1); padding: .7rem .8rem;
   box-shadow: 0 10px 28px rgba(0,0,0,.16); }
 /* Ligne d'upload + action séparée du cadre */
-.upload-row { display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; }
+/* Bloc upload : sélection de fichier sur une ligne, action (Extraire) en dessous */
+.upload-row { display: flex; flex-direction: column; align-items: flex-start; gap: .6rem; }
 .filefield { display: inline-flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
 .filefield .filename { color: var(--muted); font-size: .88rem; }
+/* Bouton de sélection de fichier : vert pâle discret */
+.filebtn { background: var(--primary-soft); color: var(--primary-strong); border: 1px solid var(--primary-soft);
+  border-radius: var(--r1); padding: .45rem .9rem; font: inherit; font-weight: 600; cursor: pointer; }
+.filebtn:hover { background: var(--primary); color: var(--on-primary); }
 .check { display: flex; align-items: center; gap: .5rem; margin: .5rem 0; }
 .check input { width: auto; }
 .winrow { display: flex; gap: .5rem; align-items: center; margin: .3rem 0; flex-wrap: wrap; }
@@ -457,13 +469,19 @@ kbd { font: 600 .78rem/1 'Helvetica Neue', Arial, sans-serif; background: var(--
   font: inherit; background: var(--surface-2); color: var(--ink); }
 .trace-pop .tp-row { display: flex; gap: .5rem; }
 /* Toast tutoriel (1re pièce) + pulsation de l'onglet Pièces */
-.trace-toast { position: fixed; right: 1.2rem; bottom: 1.2rem; z-index: 70; max-width: 320px;
-  background: var(--ink); color: var(--bg); padding: .7rem .9rem; border-radius: var(--r1);
-  box-shadow: 0 10px 30px rgba(0,0,0,.25); font-size: .88rem; line-height: 1.4; }
-.trace-toast b { color: #fff; }
-.side-tabs button.pulse { animation: pulseTab 1s ease-in-out 0s 4; }
-@keyframes pulseTab { 0%,100% { box-shadow: 0 0 0 0 var(--ring); }
-  50% { box-shadow: 0 0 0 4px var(--ring); background: var(--surface); color: var(--ink); } }
+.trace-toast { position: fixed; left: 50%; top: 1.2rem; transform: translateX(-50%); z-index: 200;
+  max-width: 380px; background: var(--primary); color: var(--on-primary); padding: .85rem 1.1rem;
+  border-radius: var(--r1); box-shadow: 0 14px 40px rgba(0,0,0,.3); font-size: .9rem; line-height: 1.45;
+  animation: toastIn .25s ease-out; }
+.trace-toast b { color: var(--on-primary); }
+.trace-toast .tt-x { display: inline-block; margin-top: .5rem; background: var(--on-primary);
+  color: var(--primary); border: 0; border-radius: var(--r1); padding: .3rem .8rem; font: inherit;
+  font-weight: 700; cursor: pointer; }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); } }
+.side-tabs button.pulse { animation: pulseTab 1s ease-in-out 0s 5; }
+@keyframes pulseTab { 0%,100% { box-shadow: 0 0 0 0 var(--ring); background: var(--surface); color: var(--ink); }
+  50% { box-shadow: 0 0 0 5px var(--ring); background: var(--primary); color: var(--on-primary); } }
 .room-no { display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem;
   background: var(--primary); color: var(--on-primary); border-radius: 50%; font-size: .8rem; font-weight: 700; }
 .room-head .grow { flex: 1; }
@@ -514,17 +532,13 @@ h2 .ic { vertical-align: -.12em; margin-right: .45rem; color: var(--primary-stro
 .spec-row .t { font-weight: 600; font-size: 1.05rem; }
 .spec-row .w { font-variant-numeric: tabular-nums; color: var(--primary); font-weight: 700; text-align: right; }
 .spec-row .d { grid-column: 1 / -1; color: var(--muted); font-size: .92rem; margin-top: -.1rem; }
-/* Résultats — score en grand */
-.score-hero { display: grid; grid-template-columns: auto 1fr; gap: var(--s5); align-items: center;
-  padding: var(--s4) 0 var(--s6); border-bottom: 1px solid var(--line); margin-bottom: var(--s5); }
-.score-hero .big { display: flex; align-items: baseline; gap: .3rem; }
-.score-hero .big .n { font-size: clamp(3.5rem, 11vw, 6.5rem); font-weight: 700; line-height: .85;
-  letter-spacing: -.05em; }
-.score-hero .big .slash { font-size: 1.4rem; color: var(--faint); }
-.score-hero h1 { font-size: clamp(1.5rem, 3.4vw, 2.2rem); margin: .3rem 0 .4rem; letter-spacing: -.03em; }
+/* Résultats — note (cercle) + verdict sur une même ligne, conclusion en dessous */
+.score-hero { display: flex; align-items: center; gap: var(--s4); flex-wrap: wrap;
+  padding: var(--s4) 0 var(--s3); }
+.score-hero .verdict-title { font-size: clamp(1.5rem, 3.4vw, 2.2rem); margin: 0; letter-spacing: -.03em; }
 /* Conclusion : points forts / points de vigilance */
-.concl { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: .8rem;
-  margin-top: .8rem; }
+.concl { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .8rem;
+  margin: 0 0 var(--s5); padding-bottom: var(--s5); border-bottom: 1px solid var(--line); }
 .concl-col { border: 1px solid var(--line); border-radius: var(--r1); padding: .6rem .8rem;
   font-size: .9rem; background: var(--surface); }
 .concl-col > div { margin: .15rem 0; }
@@ -533,13 +547,17 @@ h2 .ic { vertical-align: -.12em; margin-right: .45rem; color: var(--primary-stro
 .concl-col.good .concl-h { color: #1a9d5a; }
 .concl-col.bad { border-left: 3px solid var(--danger); }
 .concl-col.bad .concl-h { color: var(--danger); }
-.result-actions { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin: 0 0 1.4rem;
-  padding: .6rem .8rem; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r1); }
+.result-actions { margin: 0 0 1.4rem; padding: .7rem .9rem; background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: var(--r1); }
 .result-actions .ra-lbl { font-size: .72rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .05em; color: var(--muted); margin-right: .2rem; }
+  letter-spacing: .05em; color: var(--muted); margin-bottom: .5rem; }
+.result-actions .ra-btns { display: flex; gap: .6rem; flex-wrap: wrap; }
 .hyp-grp { margin: .9rem 0 .2rem; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em;
   color: var(--muted); font-weight: 700; }
 .explain table.kv td { font-size: .85rem; }
+/* Bilan : séparateur discret entre les colonnes VMC et VNC */
+.cost-cols > div:nth-child(2) { border-left: 1px solid var(--line); padding-left: var(--s4); }
+@media (max-width: 720px) { .cost-cols > div:nth-child(2) { border-left: 0; padding-left: 0; } }
 @media (max-width: 720px) {
   .process { grid-template-columns: 1fr; }
   .proc + .proc { border-left: 0; padding-left: 0; }
@@ -803,7 +821,7 @@ _CONFIG_JS = """
     Array.prototype.forEach.call(document.querySelectorAll('input[type=file]'), function(inp){
       if(inp.dataset.enh){ return; } inp.dataset.enh='1';
       var wrap=document.createElement('span'); wrap.className='filefield';
-      var btn=document.createElement('button'); btn.type='button'; btn.className='btn ghost sm';
+      var btn=document.createElement('button'); btn.type='button'; btn.className='filebtn';
       btn.textContent=inp.multiple?'Sélectionner des fichiers':'Sélectionner un fichier';
       var nm=document.createElement('span'); nm.className='filename'; nm.textContent='Aucun fichier choisi';
       inp.parentNode.insertBefore(wrap, inp); wrap.appendChild(btn); wrap.appendChild(nm); wrap.appendChild(inp);
@@ -1349,6 +1367,7 @@ function render(){
   if(!stage){ return; }
   shapeLayer.destroyChildren();
   levelsel();
+  var selGrp=null;
   B.rooms.forEach(function(r,i){
     if(multi && r.level!==F().level){ return; }
     if(!r.polygon || r.polygon.length<2){ return; }
@@ -1368,7 +1387,7 @@ function render(){
         }
         grp.position({x:0,y:0}); render();
       });
-      shapeLayer.add(grp);
+      shapeLayer.add(grp); selGrp=grp;
       r.polygon.forEach(function(m,vi){ var p=toPx(m[0],m[1]);
         var h=new Konva.Circle({x:p[0],y:p[1],radius:sc(5),fill:"#fff",stroke:"#08313a",strokeWidth:sc(1.5),draggable:true});
         h.on("dragmove",function(){ var q=snapPx([h.x(),h.y()],i,vi); h.x(q[0]); h.y(q[1]); r.polygon[vi]=toM(q[0],q[1]); poly.points(polyPxPoints(r)); r.area_m2=Math.max(area(r.polygon),0.01); shapeLayer.batchDraw(); });
@@ -1401,6 +1420,7 @@ function render(){
       shapeLayer.add(ln);
     });
   });
+  if(selGrp){ selGrp.moveToTop(); }  // pièce sélectionnée toujours au-dessus (contour visible)
   if(draft.length){
     var dp=[]; draft.forEach(function(p){ dp.push(p[0],p[1]); });
     shapeLayer.add(new Konva.Line({points:dp, stroke:"#e8590c", strokeWidth:sc(2*markF()), dash:[sc(6*markF()),sc(4*markF())], listening:false}));
@@ -1459,9 +1479,12 @@ function notifyFirstRoom(){
   if(firstRoomNotified){ return; } firstRoomNotified=true;
   var br=document.getElementById("tab-rooms"); if(br){ br.classList.add("pulse"); }
   var t=document.createElement("div"); t.className="trace-toast";
-  t.innerHTML='Première pièce ajoutée. Retrouvez et modifiez vos pièces dans l\\'onglet <b>Pièces</b> (à droite).';
+  t.innerHTML='<b>Première pièce ajoutée.</b><br>Retrouvez et modifiez toutes vos pièces dans '+
+    'l\\'onglet <b>« Pièces »</b>, à droite. <button type="button" class="tt-x">Compris</button>';
   document.body.appendChild(t);
-  setTimeout(function(){ if(t.parentNode){ t.parentNode.removeChild(t); } if(br){ br.classList.remove("pulse"); } }, 6000);
+  var close=function(){ if(t.parentNode){ t.parentNode.removeChild(t); } if(br){ br.classList.remove("pulse"); } };
+  var x=t.querySelector(".tt-x"); if(x){ x.addEventListener("click", close); }
+  setTimeout(close, 9000);
 }
 function addRoom(poly){
   B.rooms.push({id:"r"+B.rooms.length, name:null, label:"autre", level:curLevel(), polygon:poly,
@@ -1562,7 +1585,7 @@ function roomlist(){
         '<b>'+fmt(r.area_m2)+' m²</b>'+
         (through(r)?'<span class="badge-ok">traversant</span>':'')+
         '<span class="grow"></span>'+
-        '<label class="nivlbl">niv.<input data-lvl="'+i+'" type="number" value="'+r.level+'" style="width:42px;padding:.15rem"></label>'+
+        '<label class="nivlbl">Niveau <input data-lvl="'+i+'" type="number" value="'+r.level+'" style="width:42px;padding:.15rem"></label>'+
         '<button type="button" data-del="'+i+'" class="iconbtn" title="supprimer">'+ICON_X+'</button>'+
       '</div>'+
       '<div class="room-sec"><span class="room-seclbl">Façades</span><div class="chips">'+chips+'</div></div>'+
@@ -2153,14 +2176,14 @@ def _financial_section(result: StudyResult, hyp_html: str = "") -> str:
     capex = (
         "<h3>CAPEX (investissement, aléas inclus)</h3>"
         f"{openbook}"
-        '<div class="crit-grid">'
+        '<div class="crit-grid cost-cols">'
         f"<div>{_cost_block('VMC double-flux', _sec('capex_vmc'))}</div>"
         f"<div>{_cost_block('VNC', _sec('capex_vnc'))}</div>"
         "</div>"
     )
     opex = (
         "<h3>OPEX annuel (an 1, avant inflation)</h3>"
-        '<div class="crit-grid">'
+        '<div class="crit-grid cost-cols">'
         f"<div>{_cost_block('VMC double-flux', _sec('opex_vmc'))}</div>"
         f"<div>{_cost_block('VNC', _sec('opex_vnc'))}</div>"
         "</div>"
@@ -2296,14 +2319,15 @@ def _hypotheses_form(result: StudyResult, building: object | None, cfg: Mapping[
 
 
 def _results_actions() -> str:
-    """Barre d'actions encadrée en tête de résultats (lit le formulaire par id, plus bas)."""
+    """Encadré « Export » (titre + options dessous) ; lit le formulaire par id, plus bas."""
     return (
         '<div class="result-actions">'
-        '<span class="ra-lbl">Exporter</span>'
-        f'<button type="button" class="btn ghost sm" onclick="downloadProject()">{_icon("save")} Projet (JSON)</button>'
-        f'<button type="button" class="btn ghost sm" onclick="exportCsv()">{_icon("sheet")} Excel (CSV)</button>'
+        '<div class="ra-lbl">Export</div>'
+        '<div class="ra-btns">'
+        f'<button type="button" class="btn ghost sm" onclick="exportCsv()">{_icon("sheet")} Excel</button>'
         f'<button type="button" class="btn ghost sm" onclick="exportPdf()">{_icon("file")} PDF</button>'
-        "</div>"
+        f'<button type="button" class="btn ghost sm" onclick="downloadProject()">{_icon("save")} Projet (JSON)</button>'
+        "</div></div>"
     )
 
 
@@ -2382,11 +2406,9 @@ def render_results(
     body = f"""
 <div class="score-hero">
   {gauge}
-  <div>
-    <h1 class="verdict-title" style="border-left:4px solid {vcolor};padding-left:.6rem">{html.escape(title)}</h1>
-    {concl}
-  </div>
+  <h1 class="verdict-title" style="border-left:4px solid {vcolor};padding-left:.7rem">{html.escape(title)}</h1>
 </div>
+{concl}
 {_results_actions()}
 <h2 class="sec">Détail par critère</h2>
 {_criteria_bars(result)}
