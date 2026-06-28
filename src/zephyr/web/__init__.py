@@ -272,7 +272,6 @@ footer { color: var(--muted); font-size: .85rem; padding: var(--s6) 0 var(--s7);
 .bar-row { display: grid; grid-template-columns: 220px 1fr 48px; gap: .7rem;
   align-items: center; padding: .45rem 0; border-bottom: 1px solid var(--line); }
 .bar-row .lab { font-weight: 600; font-size: .92rem; }
-.bar-row .lab small { display: block; font-weight: 400; color: var(--muted); font-size: .8rem; }
 .track { background: var(--surface-2); border-radius: var(--pill); height: .7rem; overflow: hidden; }
 .fill { height: 100%; border-radius: var(--pill); }
 .bar-row .val { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -284,6 +283,7 @@ footer { color: var(--muted); font-size: .85rem; padding: var(--s6) 0 var(--s7);
   display: inline-block; transition: transform .15s; }
 .crit[open] > summary .lab::before { transform: rotate(90deg); }
 .crit-detail { padding: .2rem 0 .9rem 1.1rem; }
+.crit-summary { font-size: .88rem; color: var(--ink); margin: .2rem 0 .5rem; }
 .crit-scale { font-size: .82rem; color: var(--muted); margin: .2rem 0 .5rem; }
 .crit-formula { font-size: .84rem; font-weight: 600; color: var(--ink); margin: .4rem 0 0; }
 table.bd { width: 100%; border-collapse: collapse; font-size: .82rem; margin: .2rem 0; }
@@ -2082,7 +2082,7 @@ def _criteria_bars(result: StudyResult) -> str:
             "#1a9d5a" if c.score >= 75 else "#d9a400" if c.score >= 50 else "#e07b39"
         )
         bar = (
-            f'<div class="lab">{html.escape(c.label)}<small>{html.escape(c.detail)}</small></div>'
+            f'<div class="lab">{html.escape(c.label)}</div>'
             f'<div class="track"><div class="fill" style="width:{c.score:.0f}%;'
             f'background:{color}"></div></div>'
             f'<div class="val">{c.score:.0f}</div>'
@@ -2091,10 +2091,13 @@ def _criteria_bars(result: StudyResult) -> str:
         scale = (
             f'<p class="crit-scale"><b>Barème :</b> {html.escape(c.scale)}</p>' if c.scale else ""
         )
-        if table or scale:
+        detail = (
+            f'<p class="crit-summary">{html.escape(c.detail)}</p>' if c.detail else ""
+        )
+        if table or scale or detail:
             rows.append(
                 f'<details class="crit"><summary class="bar-row">{bar}</summary>'
-                f'<div class="crit-detail">{scale}{table}</div></details>'
+                f'<div class="crit-detail">{detail}{scale}{table}</div></details>'
             )
         else:
             rows.append(f'<div class="bar-row">{bar}</div>')
