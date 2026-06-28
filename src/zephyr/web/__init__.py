@@ -389,7 +389,13 @@ table.kv td:last-child { text-align: right; font-variant-numeric: tabular-nums; 
 .field > .lab { font-weight: 600; font-size: .92rem; margin-bottom: .35rem; }
 .field .hint { color: var(--muted); font-size: .82rem; margin: .35rem 0 0; }
 .hint { color: var(--muted); font-size: .82rem; }
-.hint.err { color: var(--danger); font-weight: 600; }
+.hint.err { display: inline-flex; align-items: center; gap: .45rem; color: var(--danger);
+  font-weight: 600; font-size: .84rem; background: var(--danger-soft);
+  border: 1px solid var(--danger); border-radius: var(--pill); padding: .35rem .75rem;
+  vertical-align: middle; }
+.hint.err::before { content: '!'; display: inline-flex; align-items: center; justify-content: center;
+  width: 1.05rem; height: 1.05rem; flex: none; border-radius: 50%; background: var(--danger);
+  color: #fff; font-size: .72rem; font-weight: 700; }
 .uploader { border: 1.5px dashed var(--line); border-radius: var(--r1); padding: 1rem 1.1rem;
   background: var(--surface-2); }
 .uploader + .uploader { margin-top: .8rem; }
@@ -876,9 +882,8 @@ _CONFIG_JS = """
       else {
         hint.style.display=''; hint.classList.add('err');
         hint.textContent = !planOk
-          ? "Importez d'abord un plan pour continuer."
-          : "Renseignez le passeport énergétique : importez-le puis cliquez « Extraire », "
-            + "ou choisissez « Saisie à la main » et vérifiez les valeurs.";
+          ? "Importez d'abord un plan."
+          : "Renseignez le passeport énergétique.";
       }
     }
   }
